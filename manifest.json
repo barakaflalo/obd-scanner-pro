@@ -1,14 +1,1 @@
-{
-  "name": "OBD Scanner Pro",
-  "short_name": "OBD Scanner",
-  "description": "Professional OBD-II car diagnostic scanner",
-  "start_url": "./",
-  "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#0c1220",
-  "theme_color": "#f59e0b",
-  "icons": [
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
-  ],
-  "categories": ["utilities", "auto"]
-}
+{"name":"AutoDiag Pro — אבחון רכב","short_name":"AutoDiag Pro","start_url":"/autodiag-pro/","display":"standalone","background_color":"#0F172A","theme_color":"#F59E0B","orientation":"portrait","icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}],"lang":"he","dir":"rtl"}
