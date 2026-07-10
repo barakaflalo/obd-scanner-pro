@@ -1363,9 +1363,20 @@ function App() {
   const handleData = useCallback(txt => {
     resBuf.current += txt;
     const buf = resBuf.current;
-    // Check for any response terminator: > prompt, OK, NO DATA, ERROR, ?, or double CR
-    if (buf.includes('>') || buf.includes('OK\r') || buf.includes('NO DATA') || buf.includes('ERROR') || buf.includes('UNABLE') || buf.includes('?') || buf.includes('STOPPED') || /\r\n\r\n/.test(buf) || /\r\r/.test(buf)) {
-      const clean = buf.replace(/[\r\n>]/g, '').trim();
+    // SEARCHING... is intermediate, not a final response - keep waiting
+    if (/SEARCHING\.*\s*$/.test(buf.trim())) return;
+    // Final terminators: > prompt is the definitive one
+    if (buf.includes('>') || buf.includes('NO DATA') || buf.includes('UNABLE TO CONNECT') || buf.includes('CAN ERROR') || buf.includes('BUS INIT') && buf.includes('ERROR') || buf.includes('STOPPED') || buf.includes('?\r')) {
+      const clean = buf.replace(/SEARCHING\.*/g, '').replace(/[\r\n>]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (resolveFn.current) {
+        resolveFn.current(clean);
+        resolveFn.current = null;
+      }
+      resBuf.current = '';
+    }
+    // OK response for AT commands
+    else if (/OK[\r\n]*$/.test(buf.trim()) && buf.length < 20) {
+      const clean = buf.replace(/[\r\n>]/g, ' ').trim();
       if (resolveFn.current) {
         resolveFn.current(clean);
         resolveFn.current = null;
@@ -1564,15 +1575,17 @@ function App() {
   // ─── INIT ELM327 ───
   const initELM = useCallback(async () => {
     setCI('Initializing...');
-    // Reset with longer timeout - some adapters are slow
     const atz = await send('ATZ', 8000);
     addLog('ATZ → ' + atz);
-    await new Promise(r => setTimeout(r, 1000)); // Wait after reset
-    // Echo off, then verify
-    for (const cmd of ['ATE0', 'ATE0', 'ATL0', 'ATH0', 'ATS0', 'ATSP0']) {
+    await new Promise(r => setTimeout(r, 1000));
+    for (const cmd of ['ATE0', 'ATE0', 'ATL0', 'ATH0', 'ATS0']) {
       const r = await send(cmd, 3000);
       addLog(cmd + ' → ' + r);
     }
+    // Set auto protocol + longer timeout for slow ECUs
+    await send('ATSP0', 3000);
+    await send('ATST FF', 2000); // Max timeout 1020ms per message
+    await send('ATAT1', 2000); // Adaptive timing
     const ver = await send('ATI', 3000);
     addLog('Version: ' + ver);
     const volt = await send('ATRV', 3000);
@@ -1580,26 +1593,47 @@ function App() {
       ...p,
       batt: volt.replace('V', '').trim()
     }));
-    const proto = await send('ATDP', 3000);
-    if (proto && !proto.includes('TIMEOUT')) setVI(p => ({
-      ...p,
-      proto
-    }));
-    // Test connection with a simple PID
-    const test = await send('01 00', 5000);
+    // CRITICAL: First 0100 triggers protocol search - needs LONG timeout (up to 30s on some cars)
+    setCI('Detecting protocol...');
+    addLog('Detecting protocol (may take 30s)...');
+    let test = await send('01 00', 30000);
+    addLog('0100 → ' + test);
+    // Retry once if failed
+    if (!test || !test.includes('41 00')) {
+      addLog('Retrying protocol detection...');
+      await new Promise(r => setTimeout(r, 2000));
+      test = await send('01 00', 30000);
+      addLog('0100 retry → ' + test);
+    }
     if (test && test.includes('41 00')) {
       addLog('Vehicle connected!', 'success');
-      const hx = test.replace(/41\s*00\s*/, '').replace(/\s/g, '');
+      const proto = await send('ATDP', 3000);
+      if (proto && !proto.includes('TIMEOUT')) setVI(p => ({
+        ...p,
+        proto
+      }));
+      addLog('Protocol: ' + proto);
+      const hx = test.replace(/.*41\s*00\s*/, '').replace(/\s/g, '');
       const sp = [];
-      for (let i = 0; i < hx.length; i += 2) {
+      for (let i = 0; i < hx.length && i < 8; i += 2) {
         const bt = parseInt(hx.substring(i, i + 2), 16);
-        for (let bit = 7; bit >= 0; bit--) {
-          if (bt & 1 << bit) sp.push((i / 2 * 8 + (7 - bit) + 1).toString(16).toUpperCase().padStart(2, '0'));
+        if (!isNaN(bt)) {
+          for (let bit = 7; bit >= 0; bit--) {
+            if (bt & 1 << bit) sp.push((i / 2 * 8 + (7 - bit) + 1).toString(16).toUpperCase().padStart(2, '0'));
+          }
         }
       }
       setSP(sp);
+      setVI(p => ({
+        ...p,
+        vehicleOk: true
+      }));
     } else {
-      addLog('No vehicle response — is ignition ON?', 'error');
+      addLog('⚠️ No vehicle response! Check: ignition ON? adapter firmly in port?', 'error');
+      setVI(p => ({
+        ...p,
+        vehicleOk: false
+      }));
     }
     setCS('on');
     setCI('Connected ✓');
@@ -1645,9 +1679,10 @@ function App() {
 
   // ─── READ PID ───
   const readPID = useCallback(async pid => {
-    const resp = await send('01 ' + pid, 2000);
-    if (!resp || resp.includes('NO DATA')) return null;
-    const cl = resp.replace(/\s/g, '');
+    const resp = await send('01 ' + pid, 3000);
+    if (!resp || resp.includes('NO DATA') || resp.includes('STOPPED') || resp.includes('ERROR') || resp.includes('SEARCHING')) return null;
+    const cl = resp.replace(/\s/g, '').toUpperCase();
+    // Find "41"+pid anywhere in response (handles headers like 7E8064105...)
     const idx = cl.indexOf('41' + pid.toUpperCase());
     if (idx < 0) return null;
     const p = PIDS[pid];
@@ -1655,6 +1690,7 @@ function App() {
     const bs = [];
     for (let i = 0; i < p.b; i++) {
       const h = cl.substring(idx + 4 + i * 2, idx + 4 + i * 2 + 2);
+      if (h.length < 2) return null;
       bs.push(parseInt(h, 16));
     }
     if (bs.some(isNaN)) return null;
@@ -1673,7 +1709,11 @@ function App() {
     setGD([]);
     addLog('Monitor: ' + pr.n);
     let idx = 0;
+    let busy = false;
+    // Sequential polling - don't overlap requests (BLE can't handle parallel)
     monRef.current = setInterval(async () => {
+      if (busy) return;
+      busy = true;
       const pid = pr.p[idx % pr.p.length];
       const v = await readPID(pid);
       if (v !== null) setLD(p => ({
@@ -1681,7 +1721,8 @@ function App() {
         [pid]: parseFloat(v) || v
       }));
       idx++;
-    }, pr.ms / pr.p.length);
+      busy = false;
+    }, Math.max(pr.ms / pr.p.length, 300));
   }, [preset, readPID, addLog]);
   const stopMon = useCallback(() => {
     if (monRef.current) clearInterval(monRef.current);
@@ -1853,22 +1894,30 @@ function App() {
     setSE(null);
     addLog('ECU scan starting...');
     const found = [];
+    // Turn headers ON to see which ECU responds
+    await send('ATH1', 1500);
     for (let i = 0; i < ECUS.length; i++) {
       const ecu = ECUS[i];
       setEP(`${ecu.ic} ${ecu.h || ecu.n} (${i + 1}/${ECUS.length})`);
       await send('AT SH ' + ecu.a, 1000);
       await send('AT CRA ' + ecu.r, 1000);
-      const r = await send('3E 00', 1500);
+      const r = await send('3E 00', 2500);
       const isDemo = cmRef.current === 'demo';
-      const ok = isDemo ? DEMO_ACTIVE.has(ecu.a) : r && !r.includes('NO DATA') && !r.includes('ERROR') && !r.includes('TIMEOUT');
+      // Valid response MUST contain '7E' (positive tester-present) or valid hex starting with response ID
+      const clean = (r || '').replace(/\s/g, '').toUpperCase();
+      const validResp = clean.includes('7E00') || clean.includes('7E') && /[0-9A-F]{4,}/.test(clean) && !clean.includes('NODATA') && !clean.includes('ERROR') && !clean.includes('TIMEOUT') && !clean.includes('STOPPED') && !clean.includes('UNABLE') && !clean.includes('?');
+      const ok = isDemo ? DEMO_ACTIVE.has(ecu.a) : validResp;
       found.push({
         ...ecu,
         ok,
         raw: r || ''
       });
-      if (ok) addLog('Found: ' + ecu.n, 'success');
+      if (ok) addLog('Found: ' + ecu.n + ' → ' + r, 'success');
     }
+    // Reset headers and address
+    await send('ATH0', 1000);
     await send('AT SH 7DF', 1000);
+    await send('AT CRA', 1000);
     setEL(found);
     setEP('');
     setES(false);
