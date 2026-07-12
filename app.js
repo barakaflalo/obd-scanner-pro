@@ -1283,6 +1283,11 @@ function App() {
   const [tripStart, setTS2] = useState(null);
   const [tripDist, setTD2] = useState(0);
   const [alerts, setAlerts] = useState([]);
+  const [odoScanning, setOScan] = useState(false);
+  const [odoProg, setOProg] = useState('');
+  const [odoResults, setOResults] = useState([]);
+  const [odoRawLog, setORaw] = useState([]);
+  const [odoKnownKm, setOKm] = useState('');
   const t = useCallback(k => T[k]?.[lang] || T[k]?.en || k, [lang]);
   const isRTL = RTL.includes(lang);
   const bleDevRef = useRef(null);
@@ -1305,14 +1310,25 @@ function App() {
   // ─── SEND COMMAND ───
   const send = useCallback(async (cmd, timeout = 3000) => {
     return new Promise(async resolve => {
+      // Clear any stale data from previous command before starting
       resBuf.current = '';
-      const timer = setTimeout(() => {
+      resolveFn.current = null;
+      // Small settle delay so late responses from prev command don't leak in
+      await new Promise(r => setTimeout(r, 60));
+      resBuf.current = '';
+      let done = false;
+      const finish = val => {
+        if (done) return;
+        done = true;
         resolveFn.current = null;
-        resolve(resBuf.current || 'TIMEOUT');
+        resolve(val);
+      };
+      const timer = setTimeout(() => {
+        finish(resBuf.current || 'TIMEOUT');
       }, timeout);
       resolveFn.current = d => {
         clearTimeout(timer);
-        resolve(d);
+        finish(d);
       };
       try {
         const bytes = new TextEncoder().encode(cmd + '\r');
@@ -1331,12 +1347,10 @@ function App() {
             }
             if (resolveFn.current) {
               resolveFn.current(r);
-              resolveFn.current = null;
             }
           }, 40 + Math.random() * 80);
         } else if (cmRef.current === 'ble' && bleWrRef.current) {
           const data = new TextEncoder().encode(cmd + '\r');
-          // Split into 20-byte chunks for BLE MTU
           for (let i = 0; i < data.length; i += 20) {
             const chunk = data.slice(i, Math.min(i + 20, data.length));
             if (bleWrRef.current.properties.writeWithoutResponse) {
@@ -1344,19 +1358,17 @@ function App() {
             } else {
               await bleWrRef.current.writeValue(chunk);
             }
-            if (i + 20 < data.length) await new Promise(r => setTimeout(r, 10));
+            if (i + 20 < data.length) await new Promise(r => setTimeout(r, 15));
           }
         } else if (cmRef.current === 'serial' && serialWrRef.current) {
           await serialWrRef.current.write(bytes);
         } else if (cmRef.current === 'wifi' && wsRef.current && wsRef.current.readyState === 1) {
           wsRef.current.send(cmd + '\r');
         } else {
-          clearTimeout(timer);
-          resolve('NOT CONNECTED');
+          finish('NOT CONNECTED');
         }
       } catch (e) {
-        clearTimeout(timer);
-        resolve('ERROR: ' + e.message);
+        finish('ERROR: ' + e.message);
       }
     });
   }, []);
@@ -1585,31 +1597,44 @@ function App() {
     }));
 
     // Try protocols one by one - most common first
-    // 6=ISO15765 11bit 500k (most modern cars), 7=ISO15765 29bit 500k, 8=11bit 250k, 9=29bit 250k, 5=KWP, 4=ISO9141, 3=KWP5baud, 1=J1850PWM, 2=J1850VPW
     const protocols = [{
       n: '6',
-      d: 'CAN 11bit 500k'
+      d: 'CAN 11bit 500k',
+      to: 7000
     }, {
       n: '7',
-      d: 'CAN 29bit 500k'
+      d: 'CAN 29bit 500k',
+      to: 7000
     }, {
       n: '8',
-      d: 'CAN 11bit 250k'
+      d: 'CAN 11bit 250k',
+      to: 7000
     }, {
       n: '9',
-      d: 'CAN 29bit 250k'
+      d: 'CAN 29bit 250k',
+      to: 7000
     }, {
       n: '5',
-      d: 'KWP2000 fast'
+      d: 'KWP2000 fast',
+      to: 10000
     }, {
       n: '4',
-      d: 'ISO9141-2'
+      d: 'ISO9141-2',
+      to: 12000
+    },
+    // Nissan Micra, old Japanese - SLOW init
+    {
+      n: '3',
+      d: 'KWP2000 5baud',
+      to: 12000
     }, {
       n: '1',
-      d: 'J1850 PWM'
+      d: 'J1850 PWM',
+      to: 8000
     }, {
       n: '2',
-      d: 'J1850 VPW'
+      d: 'J1850 VPW',
+      to: 8000
     }];
     setCI('Detecting protocol...');
     let connected = false,
@@ -1619,10 +1644,21 @@ function App() {
       setCI('Trying ' + proto.d + '...');
       addLog('Trying protocol ' + proto.n + ' (' + proto.d + ')');
       await send('ATSP' + proto.n, 2000);
-      // Send 0100 to test this protocol - give it time
-      const test = await send('0100', 7000);
+      // For slow ISO protocols, set slow init timing
+      if (proto.n === '4' || proto.n === '3') {
+        await send('ATIB10', 1500);
+        await send('ATSW00', 1500);
+      }
+      // First attempt triggers bus init - can be slow on ISO
+      let test = await send('0100', proto.to);
       addLog('  0100 → ' + test);
-      if (test && test.includes('4100') || test && test.replace(/\s/g, '').includes('4100')) {
+      // ISO protocols often need a second try after bus init
+      if ((!test || !test.replace(/\s/g, '').includes('4100')) && (proto.n === '4' || proto.n === '3' || proto.n === '5')) {
+        await new Promise(r => setTimeout(r, 500));
+        test = await send('0100', proto.to);
+        addLog('  0100 retry → ' + test);
+      }
+      if (test && test.replace(/\s/g, '').includes('4100')) {
         connected = true;
         goodTest = test;
         addLog('✅ Protocol ' + proto.n + ' works! (' + proto.d + ')', 'success');
@@ -1718,8 +1754,8 @@ function App() {
 
   // ─── READ PID ───
   const readPID = useCallback(async pid => {
-    const resp = await send('01 ' + pid, 3000);
-    if (!resp || resp.includes('NO DATA') || resp.includes('STOPPED') || resp.includes('ERROR') || resp.includes('SEARCHING')) return null;
+    const resp = await send('01 ' + pid, 4000);
+    if (!resp || resp.includes('NO DATA') || resp.includes('STOPPED') || resp.includes('ERROR') || resp.includes('SEARCHING') || resp.includes('UNABLE') || resp.includes('TIMEOUT')) return null;
     const cl = resp.replace(/\s/g, '').toUpperCase();
     // Find "41"+pid anywhere in response (handles headers like 7E8064105...)
     const idx = cl.indexOf('41' + pid.toUpperCase());
@@ -1924,6 +1960,163 @@ function App() {
     setFD(ff);
     addLog('Freeze frame done', 'success');
   }, [send, addLog]);
+
+  // ─── ODOMETER INVESTIGATOR ───
+  // Addresses to probe (standard + Toyota/Lexus + Nissan specific)
+  const ODO_ADDRESSES = [{
+    a: '7E0',
+    r: '7E8',
+    n: 'ECM Engine'
+  }, {
+    a: '7E1',
+    r: '7E9',
+    n: 'TCM Trans'
+  }, {
+    a: '7E2',
+    r: '7EA',
+    n: 'ECU 3'
+  }, {
+    a: '7C0',
+    r: '7C8',
+    n: 'IC Cluster (Toyota)'
+  }, {
+    a: '7C4',
+    r: '7CC',
+    n: 'Head Unit'
+  }, {
+    a: '720',
+    r: '728',
+    n: 'BCM Body'
+  }, {
+    a: '740',
+    r: '748',
+    n: 'IC Instrument'
+  }, {
+    a: '760',
+    r: '768',
+    n: 'Cluster Alt'
+  }, {
+    a: '7B0',
+    r: '7B8',
+    n: 'Meter (Nissan)'
+  }, {
+    a: '7C6',
+    r: '7CE',
+    n: 'Combination Meter'
+  }, {
+    a: '750',
+    r: '758',
+    n: 'ABS'
+  }, {
+    a: '7D0',
+    r: '7D8',
+    n: 'Cluster D0'
+  }, {
+    a: '7E6',
+    r: '7EE',
+    n: 'Meter E6'
+  }, {
+    a: '7DF',
+    r: '',
+    n: 'Broadcast'
+  }];
+  // Commands known to return odometer across manufacturers
+  const ODO_COMMANDS = ['22 F1 A6', '22 F1 90', '22 02 00', '22 F0 10', '22 DD 01', '22 DD 04', '22 DD 05', '21 01', '21 02', '21 06', '21 0E', '21 81', '22 F1 91', '22 01 21', '22 24 21', '22 F4 5E', '22 B0 01', '22 20 03', '22 30 06', '01 A6', '22 F1 9C', '22 F1 A2'];
+  const investigateOdometer = useCallback(async () => {
+    setOScan(true);
+    setOResults([]);
+    setORaw([]);
+    addLog('🔍 Odometer investigation starting...', 'success');
+    const results = [];
+    const rawLog = [];
+    const knownKm = parseInt(odoKnownKm) || 0;
+    // Precompute hex fingerprints to search for
+    const fingerprints = [];
+    if (knownKm > 0) {
+      fingerprints.push({
+        label: 'raw',
+        hex: knownKm.toString(16).toUpperCase().padStart(6, '0')
+      });
+      fingerprints.push({
+        label: 'x10',
+        hex: (knownKm * 10).toString(16).toUpperCase().padStart(6, '0')
+      });
+      fingerprints.push({
+        label: 'x100',
+        hex: (knownKm * 100).toString(16).toUpperCase().padStart(8, '0')
+      });
+      fingerprints.push({
+        label: 'miles',
+        hex: Math.round(knownKm / 1.609).toString(16).toUpperCase().padStart(6, '0')
+      });
+      fingerprints.push({
+        label: 'x2',
+        hex: (knownKm * 2).toString(16).toUpperCase().padStart(6, '0')
+      });
+    }
+    await send('ATH1', 1500); // headers ON to see responses
+
+    for (let i = 0; i < ODO_ADDRESSES.length; i++) {
+      const ecu = ODO_ADDRESSES[i];
+      setOProg(`${ecu.n} (${i + 1}/${ODO_ADDRESSES.length})`);
+      await send('AT SH ' + ecu.a, 1000);
+      if (ecu.r) await send('AT CRA ' + ecu.r, 1000);else await send('AT CRA', 1000);
+      // Enter diagnostic session first
+      await send('10 03', 1500);
+      for (const cmd of ODO_COMMANDS) {
+        const resp = await send(cmd, 2500);
+        if (!resp || resp.includes('NO DATA') || resp.includes('TIMEOUT') || resp.includes('ERROR') || resp.includes('STOPPED') || resp.includes('UNABLE') || resp === '?' || resp.includes('7F')) continue;
+        const clean = resp.replace(/\s/g, '').toUpperCase();
+        if (clean.length < 6) continue;
+        // Log every real response
+        rawLog.push({
+          ecu: ecu.n,
+          addr: ecu.a,
+          cmd,
+          resp: clean
+        });
+        // Check fingerprints
+        let match = null;
+        for (const fp of fingerprints) {
+          if (clean.includes(fp.hex)) {
+            match = fp.label;
+            break;
+          }
+        }
+        // Also try to decode any 3-4 byte value as potential km
+        const decoded = [];
+        for (let j = 0; j < clean.length - 5; j += 2) {
+          const v3 = parseInt(clean.substring(j, j + 6), 16);
+          if (v3 > 10000 && v3 < 3000000) decoded.push({
+            raw: v3,
+            km: v3
+          });
+          const v4 = parseInt(clean.substring(j, j + 8), 16);
+          if (v4 > 100000 && v4 < 30000000) decoded.push({
+            raw: v4,
+            km: Math.round(v4 / 10)
+          });
+        }
+        results.push({
+          ecu: ecu.n,
+          addr: ecu.a,
+          cmd,
+          resp: clean,
+          match,
+          decoded: decoded.slice(0, 3)
+        });
+        if (match) addLog(`✅✅ MATCH! ${ecu.n} ${cmd} = ${match}`, 'success');
+      }
+    }
+    await send('ATH0', 1000);
+    await send('AT SH 7DF', 1000);
+    await send('AT CRA', 1000);
+    setOResults(results);
+    setORaw(rawLog);
+    setOProg('');
+    setOScan(false);
+    addLog(`Investigation done! ${results.length} responses, ${results.filter(r => r.match).length} matches`, 'success');
+  }, [send, addLog, odoKnownKm]);
 
   // ─── ECU SCAN ───
   const scanECUs = useCallback(async () => {
@@ -3231,9 +3424,156 @@ function App() {
     }
   }, d.u)))))))), tab === 'scan' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
+      ...s.card,
+      background: isDark ? '#1c1917' : '#fef3c7',
+      borderColor: '#f59e0b',
+      borderWidth: 2
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 15,
+      fontWeight: 700,
+      color: '#f59e0b',
+      marginBottom: 6
+    }
+  }, "🔍 ", isRTL ? 'חוקר ק"מ' : 'Odometer Investigator'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: '#94a3b8',
+      marginBottom: 8
+    }
+  }, isRTL ? 'סורק את כל המחשבים ומחפש ק"מ. הזן את הק"מ הידוע לזיהוי אוטומטי:' : 'Scans all ECUs for odometer. Enter known km for auto-detection:'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    style: {
+      ...s.inp,
+      flex: 1
+    },
+    value: odoKnownKm,
+    onChange: e => setOKm(e.target.value.replace(/[^0-9]/g, '')),
+    placeholder: isRTL ? 'ק"מ ידוע (למשל 273078)' : 'Known km (e.g. 273078)',
+    type: "tel"
+  })), /*#__PURE__*/React.createElement("button", {
+    style: {
+      ...s.btn('#f59e0b'),
+      width: '100%'
+    },
+    onClick: investigateOdometer,
+    disabled: !isOn || odoScanning
+  }, odoScanning ? '⏳ ' + (isRTL ? 'סורק...' : 'Scanning...') : '🔍 ' + (isRTL ? 'חקור ק"מ' : 'Investigate Odometer')), odoProg && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: '#93c5fd',
+      marginTop: 6,
+      textAlign: 'center'
+    }
+  }, odoProg), odoResults.filter(r => r.match).length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 10,
+      padding: 8,
+      background: '#052e16',
+      borderRadius: 8,
+      border: '1px solid #166534'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      color: '#34d399',
+      marginBottom: 6
+    }
+  }, "✅ ", isRTL ? 'נמצאו התאמות!' : 'Matches found!'), odoResults.filter(r => r.match).map((r, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      fontSize: 11,
+      padding: '4px 0',
+      borderBottom: '1px solid #166534'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#34d399',
+      fontWeight: 600
+    }
+  }, r.ecu, " (", r.addr, ")"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: 'monospace',
+      color: '#e2e8f0',
+      direction: 'ltr'
+    }
+  }, r.cmd, " → ", r.resp), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#fbbf24',
+      fontSize: 10
+    }
+  }, "format: ", r.match)))), odoResults.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: '#f59e0b',
+      marginBottom: 4
+    }
+  }, isRTL ? 'כל התוצאות' : 'All results', " (", odoResults.length, ")"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxHeight: 300,
+      overflowY: 'auto'
+    }
+  }, odoResults.map((r, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      fontSize: 10,
+      padding: '5px 8px',
+      background: r.match ? '#052e16' : isDark ? '#0f172a' : '#f1f5f9',
+      borderRadius: 6,
+      marginBottom: 4,
+      border: r.match ? '1px solid #166534' : '1px solid #334155'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#94a3b8',
+      fontWeight: 600
+    }
+  }, r.ecu, " (", r.addr, ") — ", r.cmd), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: 'monospace',
+      color: '#e2e8f0',
+      direction: 'ltr',
+      textAlign: 'left',
+      wordBreak: 'break-all'
+    }
+  }, r.resp), r.decoded && r.decoded.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: '#fbbf24',
+      fontSize: 9,
+      direction: 'ltr',
+      textAlign: 'left'
+    }
+  }, isRTL ? 'ערכים אפשריים:' : 'possible km:', " ", r.decoded.map(d => d.km.toLocaleString()).join(', ')))))), odoRawLog.length > 0 && /*#__PURE__*/React.createElement("button", {
+    style: {
+      ...s.btn('#3b82f6'),
+      width: '100%',
+      marginTop: 8,
+      fontSize: 12
+    },
+    onClick: () => {
+      let txt = 'ODOMETER INVESTIGATION RAW LOG\nKnown km: ' + odoKnownKm + '\n\n';
+      odoRawLog.forEach(r => txt += `${r.ecu} (${r.addr}) | ${r.cmd} → ${r.resp}\n`);
+      navigator.clipboard.writeText(txt);
+      addLog('Raw log copied!', 'success');
+    }
+  }, "📋 ", isRTL ? 'העתק לוג גולמי (לשליחה)' : 'Copy raw log (to send)')), /*#__PURE__*/React.createElement("div", {
+    style: {
       display: 'flex',
       gap: 6,
       marginBottom: 10,
+      marginTop: 10,
       flexWrap: 'wrap'
     }
   }, /*#__PURE__*/React.createElement("button", {
