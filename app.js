@@ -1363,20 +1363,12 @@ function App() {
   const handleData = useCallback(txt => {
     resBuf.current += txt;
     const buf = resBuf.current;
-    // SEARCHING... is intermediate, not a final response - keep waiting
-    if (/SEARCHING\.*\s*$/.test(buf.trim())) return;
-    // Final terminators: > prompt is the definitive one
-    if (buf.includes('>') || buf.includes('NO DATA') || buf.includes('UNABLE TO CONNECT') || buf.includes('CAN ERROR') || buf.includes('BUS INIT') && buf.includes('ERROR') || buf.includes('STOPPED') || buf.includes('?\r')) {
-      const clean = buf.replace(/SEARCHING\.*/g, '').replace(/[\r\n>]/g, ' ').replace(/\s+/g, ' ').trim();
-      if (resolveFn.current) {
-        resolveFn.current(clean);
-        resolveFn.current = null;
-      }
-      resBuf.current = '';
-    }
-    // OK response for AT commands
-    else if (/OK[\r\n]*$/.test(buf.trim()) && buf.length < 20) {
-      const clean = buf.replace(/[\r\n>]/g, ' ').trim();
+    // SEARCHING... is intermediate - keep waiting for real data after it
+    const trimmed = buf.replace(/[\r\n]/g, '').trim();
+    if (/^SEARCHING\.*$/.test(trimmed)) return;
+    // The '>' prompt is the definitive end of any ELM327 response
+    if (buf.includes('>')) {
+      let clean = buf.replace(/SEARCHING\.*/gi, '').replace(/[\r\n>]/g, ' ').replace(/\s+/g, ' ').trim();
       if (resolveFn.current) {
         resolveFn.current(clean);
         resolveFn.current = null;
@@ -1577,43 +1569,89 @@ function App() {
     setCI('Initializing...');
     const atz = await send('ATZ', 8000);
     addLog('ATZ → ' + atz);
-    await new Promise(r => setTimeout(r, 1000));
-    for (const cmd of ['ATE0', 'ATE0', 'ATL0', 'ATH0', 'ATS0']) {
-      const r = await send(cmd, 3000);
-      addLog(cmd + ' → ' + r);
-    }
-    // Set auto protocol + longer timeout for slow ECUs
-    await send('ATSP0', 3000);
-    await send('ATST FF', 2000); // Max timeout 1020ms per message
-    await send('ATAT1', 2000); // Adaptive timing
+    await new Promise(r => setTimeout(r, 1200));
+    await send('ATE0', 3000);
+    await send('ATE0', 3000);
+    await send('ATL0', 2000);
+    await send('ATH0', 2000);
+    await send('ATS0', 2000);
+    await send('ATCAF1', 2000); // Auto formatting ON
     const ver = await send('ATI', 3000);
     addLog('Version: ' + ver);
     const volt = await send('ATRV', 3000);
-    if (volt && !volt.includes('ERROR') && !volt.includes('TIMEOUT')) setVI(p => ({
+    if (volt && /[0-9]/.test(volt)) setVI(p => ({
       ...p,
       batt: volt.replace('V', '').trim()
     }));
-    // CRITICAL: First 0100 triggers protocol search - needs LONG timeout (up to 30s on some cars)
+
+    // Try protocols one by one - most common first
+    // 6=ISO15765 11bit 500k (most modern cars), 7=ISO15765 29bit 500k, 8=11bit 250k, 9=29bit 250k, 5=KWP, 4=ISO9141, 3=KWP5baud, 1=J1850PWM, 2=J1850VPW
+    const protocols = [{
+      n: '6',
+      d: 'CAN 11bit 500k'
+    }, {
+      n: '7',
+      d: 'CAN 29bit 500k'
+    }, {
+      n: '8',
+      d: 'CAN 11bit 250k'
+    }, {
+      n: '9',
+      d: 'CAN 29bit 250k'
+    }, {
+      n: '5',
+      d: 'KWP2000 fast'
+    }, {
+      n: '4',
+      d: 'ISO9141-2'
+    }, {
+      n: '1',
+      d: 'J1850 PWM'
+    }, {
+      n: '2',
+      d: 'J1850 VPW'
+    }];
     setCI('Detecting protocol...');
-    addLog('Detecting protocol (may take 30s)...');
-    let test = await send('01 00', 30000);
-    addLog('0100 → ' + test);
-    // Retry once if failed
-    if (!test || !test.includes('41 00')) {
-      addLog('Retrying protocol detection...');
-      await new Promise(r => setTimeout(r, 2000));
-      test = await send('01 00', 30000);
-      addLog('0100 retry → ' + test);
+    let connected = false,
+      goodTest = '';
+    for (const proto of protocols) {
+      if (connected) break;
+      setCI('Trying ' + proto.d + '...');
+      addLog('Trying protocol ' + proto.n + ' (' + proto.d + ')');
+      await send('ATSP' + proto.n, 2000);
+      // Send 0100 to test this protocol - give it time
+      const test = await send('0100', 7000);
+      addLog('  0100 → ' + test);
+      if (test && test.includes('4100') || test && test.replace(/\s/g, '').includes('4100')) {
+        connected = true;
+        goodTest = test;
+        addLog('✅ Protocol ' + proto.n + ' works! (' + proto.d + ')', 'success');
+        setVI(p => ({
+          ...p,
+          proto: proto.d
+        }));
+      }
     }
-    if (test && test.includes('41 00')) {
+    if (!connected) {
+      // Last resort: auto mode with long wait
+      addLog('Trying AUTO protocol...');
+      await send('ATSP0', 2000);
+      const test = await send('0100', 15000);
+      addLog('  AUTO 0100 → ' + test);
+      if (test && test.replace(/\s/g, '').includes('4100')) {
+        connected = true;
+        goodTest = test;
+        const dp = await send('ATDP', 2000);
+        setVI(p => ({
+          ...p,
+          proto: dp
+        }));
+        addLog('✅ AUTO works: ' + dp, 'success');
+      }
+    }
+    if (connected) {
       addLog('Vehicle connected!', 'success');
-      const proto = await send('ATDP', 3000);
-      if (proto && !proto.includes('TIMEOUT')) setVI(p => ({
-        ...p,
-        proto
-      }));
-      addLog('Protocol: ' + proto);
-      const hx = test.replace(/.*41\s*00\s*/, '').replace(/\s/g, '');
+      const hx = goodTest.replace(/\s/g, '').replace(/.*4100/, '');
       const sp = [];
       for (let i = 0; i < hx.length && i < 8; i += 2) {
         const bt = parseInt(hx.substring(i, i + 2), 16);
@@ -1629,14 +1667,15 @@ function App() {
         vehicleOk: true
       }));
     } else {
-      addLog('⚠️ No vehicle response! Check: ignition ON? adapter firmly in port?', 'error');
+      addLog('⚠️ No protocol worked. Car may use non-standard protocol, or adapter incompatible.', 'error');
+      addLog('Try: engine running, adapter pushed in fully, different adapter.', 'error');
       setVI(p => ({
         ...p,
         vehicleOk: false
       }));
     }
     setCS('on');
-    setCI('Connected ✓');
+    setCI(connected ? 'Connected ✓' : 'Connected (no vehicle data)');
     addLog('Init complete!', 'success');
     setTab('dash');
   }, [send, addLog]);
