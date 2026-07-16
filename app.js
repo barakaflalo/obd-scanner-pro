@@ -17,127 +17,6 @@ const LANGS = {
 };
 const RTL = ['he', 'ar'];
 const T = {
-  connect:{he:'🔗 חיבור',en:'🔗 Connect',ru:'🔗 Связь',es:'🔗 Conexión',ar:'🔗 اتصال'},
-  dash:{he:'📊 דשבורד',en:'📊 Dashboard',ru:'📊 Панель',es:'📊 Panel',ar:'📊 لوحة'},
-  dtc:{he:'❌ תקלות',en:'❌ Faults',ru:'❌ Ошибки',es:'❌ Fallos',ar:'❌ أعطال'},
-  scan:{he:'🔍 סריקה',en:'🔍 ECU Scan',ru:'🔍 Скан',es:'🔍 Escaneo',ar:'🔍 مسح'},
-  vehicle:{he:'🚗 רכב',en:'🚗 Vehicle',ru:'🚗 Авто',es:'🚗 Vehículo',ar:'🚗 مركبة'},
-  term:{he:'💻 טרמינל',en:'💻 Terminal',ru:'💻 Терминал',es:'💻 Terminal',ar:'💻 طرفية'},
-  guide:{he:'📖 מדריך',en:'📖 Guide',ru:'📖 Гид',es:'📖 Guía',ar:'📖 دليل'},
-  tools:{he:'🔧 כלים',en:'🔧 Tools',ru:'🔧 Инструменты',es:'🔧 Herramientas',ar:'🔧 أدوات'},
-  rec:{he:'⏺ הקלטה',en:'⏺ Record',ru:'⏺ Запись',es:'⏺ Grabar',ar:'⏺ تسجيل'},
-  stopRec:{he:'⏹ עצור הקלטה',en:'⏹ Stop recording',ru:'⏹ Стоп запись',es:'⏹ Parar',ar:'⏹ توقف'},
-  exportCsv:{he:'📥 ייצוא CSV',en:'📥 Export CSV',ru:'📥 Экспорт CSV',es:'📥 Exportar CSV',ar:'📥 تصدير CSV'},
-  history:{he:'📋 היסטוריה',en:'📋 History',ru:'📋 История',es:'📋 Historial',ar:'📋 سجل'},
-  fuelCons:{he:'צריכת דלק',en:'Fuel consumption',ru:'Расход топлива',es:'Consumo',ar:'استهلاك الوقود'},
-  ohmCalc:{he:'מחשבון אוהם',en:'Ohm calculator',ru:'Калькулятор Ома',es:'Calculadora Ohm',ar:'حاسبة أوم'},
-  sensorRef:{he:'ערכי חיישנים תקינים',en:'Sensor reference values',ru:'Справочные значения датчиков',es:'Valores de referencia',ar:'القيم المرجعية'},
-  pinout:{he:'פינאוט OBD-II',en:'OBD-II Pinout',ru:'Распиновка OBD-II',es:'Pinout OBD-II',ar:'OBD-II Pinout'},
-  on:{he:'● מחובר',en:'● Connected',ru:'● Подключен',es:'● Conectado',ar:'● متصل'},
-  off:{he:'○ מנותק',en:'○ Disconnected',ru:'○ Отключён',es:'○ Desconectado',ar:'○ غير متصل'},
-  ing:{he:'◌ מתחבר...',en:'◌ Connecting...',ru:'◌ Подключение...',es:'◌ Conectando...',ar:'◌ جاري...'},
-  disc:{he:'ניתוק',en:'Disconnect',ru:'Отключить',es:'Desconectar',ar:'قطع'},
-  chooseConn:{he:'בחר שיטת חיבור',en:'Choose connection method',ru:'Выберите способ',es:'Elige método',ar:'اختر طريقة'},
-  bleT:{he:'Bluetooth BLE',en:'Bluetooth BLE',ru:'Bluetooth BLE',es:'Bluetooth BLE',ar:'بلوتوث'},
-  bleD:{he:'מתאם ELM327 BLE',en:'ELM327 BLE adapter',ru:'Адаптер ELM327 BLE',es:'Adaptador ELM327 BLE',ar:'محول ELM327 BLE'},
-  wifiT:{he:'WiFi',en:'WiFi',ru:'WiFi',es:'WiFi',ar:'واي فاي'},
-  wifiD:{he:'מתאם ELM327 WiFi',en:'ELM327 WiFi adapter',ru:'Адаптер ELM327 WiFi',es:'Adaptador ELM327 WiFi',ar:'محول WiFi'},
-  usbT:{he:'USB Serial',en:'USB Serial',ru:'USB Serial',es:'USB Serial',ar:'USB'},
-  usbD:{he:'מתאם USB למחשב',en:'USB adapter for PC',ru:'USB адаптер для ПК',es:'Adaptador USB para PC',ar:'محول USB'},
-  demoT:{he:'הדגמה',en:'Demo',ru:'Демо',es:'Demo',ar:'تجريبي'},
-  demoD:{he:'סימולטור ללא חומרה',en:'Simulator, no hardware',ru:'Симулятор без оборудования',es:'Simulador sin hardware',ar:'محاكي بدون أجهزة'},
-  btnConn:{he:'🔗 התחבר',en:'🔗 Connect',ru:'🔗 Подключить',es:'🔗 Conectar',ar:'🔗 اتصل'},
-  btnWait:{he:'⏳ מתחבר...',en:'⏳ Connecting...',ru:'⏳ Подключение...',es:'⏳ Conectando...',ar:'⏳ جاري...'},
-  log:{he:'📋 לוג',en:'📋 Log',ru:'📋 Журнал',es:'📋 Registro',ar:'📋 سجل'},
-  start:{he:'▶ התחל',en:'▶ Start',ru:'▶ Старт',es:'▶ Iniciar',ar:'▶ ابدأ'},
-  stop:{he:'⏹ עצור',en:'⏹ Stop',ru:'⏹ Стоп',es:'⏹ Parar',ar:'⏹ توقف'},
-  qRead:{he:'📡 קריאה מהירה',en:'📡 Quick read',ru:'📡 Быстро',es:'📡 Lectura rápida',ar:'📡 قراءة سريعة'},
-  readDtc:{he:'🔍 קרא תקלות',en:'🔍 Read faults',ru:'🔍 Читать ошибки',es:'🔍 Leer fallos',ar:'🔍 قراءة أعطال'},
-  clearDtc:{he:'🧹 מחק תקלות',en:'🧹 Clear faults',ru:'🧹 Очистить',es:'🧹 Borrar',ar:'🧹 مسح'},
-  milOn:{he:'נורית תקלה דולקת!',en:'Check engine ON!',ru:'Индикатор горит!',es:'Luz de fallo ON!',ar:'ضوء العطل مضاء!'},
-  milOff:{he:'אין נורית תקלה',en:'No check engine',ru:'Нет индикатора',es:'Sin luz de fallo',ar:'لا يوجد ضوء'},
-  confirmed:{he:'תקלות מאושרות',en:'Confirmed faults',ru:'Подтверждённые',es:'Confirmados',ar:'مؤكدة'},
-  pending:{he:'תקלות ממתינות',en:'Pending faults',ru:'Ожидающие',es:'Pendientes',ar:'معلقة'},
-  noDtc:{he:'אין תקלות!',en:'No faults!',ru:'Нет ошибок!',es:'Sin fallos!',ar:'لا أعطال!'},
-  faults:{he:'תקלות',en:'Faults',ru:'Ошибки',es:'Fallos',ar:'أعطال'},
-  readiness:{he:'✅ מוניטורים (טסט)',en:'✅ Readiness monitors',ru:'✅ Мониторы готовности',es:'✅ Monitores',ar:'✅ جاهزية'},
-  readyDesc:{he:'מוכנות לטסט פליטה',en:'Emissions test readiness',ru:'Готовность к тесту',es:'Preparación',ar:'جاهزية الانبعاثات'},
-  done:{he:'הושלם ✅',en:'Complete ✅',ru:'Готово ✅',es:'Completo ✅',ar:'مكتمل ✅'},
-  notDone:{he:'לא הושלם ❌',en:'Incomplete ❌',ru:'Не готово ❌',es:'Incompleto ❌',ar:'غير مكتمل ❌'},
-  freeze:{he:'📸 Freeze Frame',en:'📸 Freeze Frame',ru:'📸 Freeze Frame',es:'📸 Freeze Frame',ar:'📸 Freeze Frame'},
-  freezeD:{he:'נתוני חיישנים ברגע התקלה',en:'Sensor data when fault occurred',ru:'Данные при возникновении ошибки',es:'Datos al momento del fallo',ar:'بيانات عند حدوث العطل'},
-  scanAll:{he:'🔍 סרוק כל המחשבים',en:'🔍 Scan all ECUs',ru:'🔍 Сканировать все',es:'🔍 Escanear todo',ar:'🔍 مسح الكل'},
-  fullRpt:{he:'📋 דוח מלא',en:'📋 Full report',ru:'📋 Полный отчёт',es:'📋 Informe completo',ar:'📋 تقرير كامل'},
-  active:{he:'● פעיל',en:'● Active',ru:'● Активен',es:'● Activo',ar:'● نشط'},
-  inactive:{he:'○ לא נמצא',en:'○ Not found',ru:'○ Не найден',es:'○ No encontrado',ar:'○ غير موجود'},
-  kmComp:{he:'📊 השוואת ק"מ',en:'📊 Odometer comparison',ru:'📊 Сравнение пробега',es:'📊 Comparación km',ar:'📊 مقارنة المسافة'},
-  kmOk:{he:'✅ תקין',en:'✅ Normal',ru:'✅ Норма',es:'✅ Normal',ar:'✅ طبيعي'},
-  kmBad:{he:'⚠️ חשוד!',en:'⚠️ Suspicious!',ru:'⚠️ Подозрительно!',es:'⚠️ Sospechoso!',ar:'⚠️ مشبوه!'},
-  kmBadD:{he:'ייתכן הורדת ק"מ או החלפת מחשב',en:'Possible odometer rollback or ECU swap',ru:'Возможен скрут пробега',es:'Posible manipulación',ar:'احتمال تلاعب'},
-  readVeh:{he:'🚗 קרא מידע',en:'🚗 Read info',ru:'🚗 Читать',es:'🚗 Leer info',ar:'🚗 قراءة'},
-  vehInfo:{he:'מידע רכב',en:'Vehicle info',ru:'Данные авто',es:'Info vehículo',ar:'معلومات المركبة'},
-  supPids:{he:'PIDs נתמכים',en:'Supported PIDs',ru:'Поддерживаемые PID',es:'PIDs soportados',ar:'PIDs مدعومة'},
-  cmdPlace:{he:'הזן פקודה...',en:'Enter command...',ru:'Введите команду...',es:'Ingrese comando...',ar:'أدخل الأمر...'},
-  qCmds:{he:'⚡ פקודות מהירות',en:'⚡ Quick commands',ru:'⚡ Быстрые команды',es:'⚡ Comandos rápidos',ar:'⚡ أوامات سريعة'},
-  about:{he:'אודות',en:'About',ru:'О программе',es:'Acerca de',ar:'حول'},
-  aboutTxt:{he:'נוצר על ידי ברק אפללו במסגרת AppNest — קן האפליקציות',en:'Created by Barak Aflalo · AppNest',ru:'Создано Barak Aflalo · AppNest',es:'Creado por Barak Aflalo · AppNest',ar:'بارك أفلالو · AppNest'},
-  copy:{he:'© 2026 כל הזכויות שמורות לברק אפללו',en:'© 2026 All rights reserved Barak Aflalo',ru:'© 2026 Все права защищены Barak Aflalo',es:'© 2026 Todos los derechos reservados',ar:'© 2026 جميع الحقوق محفوظة'},
-  warn:{he:'⚠️ אפליקציה זו לשימוש פרטי בלבד',en:'⚠️ App for personal use only - no warranty',ru:'⚠️ Приложение для личного использования - без гарантии',es:'⚠️ Aplicación para uso personal - sin garantía',ar:'⚠️ التطبيق للاستخدام الشخصي فقط - بدون ضمان'},
-  // New translations for advanced features
-  kmHistory:{he:'📈 היסטורית ק"מ',en:'📈 KM History',ru:'📈 История пробега',es:'📈 Historial KM',ar:'📈 تاريخ الكيلومتر'},
-  kmCompare:{he:'⚖️ השוואת ק"מ',en:'⚖️ Compare KM',ru:'⚖️ Сравнить пробег',es:'⚖️ Comparar KM',ar:'⚖️ مقارنة الكيلومتر'},
-  rollbackDetected:{he:'🚨 זוהוי הורדת ק"מ',en:'🚨 Rollback Detected',ru:'🚨 Обнаружен скрут',es:'🚨 Manipulación detectada',ar:'🚨 اكتشاف التلاعب'},
-  saveVehicle:{he:'💾 שמור רכב',en:'💾 Save Vehicle',ru:'💾 Сохранить авто',es:'💾 Guardar vehículo',ar:'💾 حفظ المركبة'},
-  savedVehicles:{he:'🚗 רכבים שמורים',en:'🚗 Saved Vehicles',ru:'🚗 Сохраненные авто',es:'🚗 Vehículos guardados',ar:'🚗 المركبات المحفوظة'},
-  exportPdf:{he:'📄 ייצוא PDF',en:'📄 Export PDF',ru:'📄 Экспорт PDF',es:'📄 Exportar PDF',ar:'📄 تصدير PDF'},
-  shareWhatsApp:{he:'📱 שתף WhatsApp',en:'📱 Share WhatsApp',ru:'📱 Поделиться WhatsApp',es:'📱 Compartir WhatsApp',ar:'📱 مشاركة واتساب'},
-  shareTelegram:{he:'✈️ שתף Telegram',en:'✈️ Share Telegram',ru:'✈️ Поделиться Telegram',es:'✈️ Compartir Telegram',ar:'✈️ مشاركة تيليجرام'},
-  shareEmail:{he:'📧 שתף אימייל',en:'📧 Share Email',ru:'📧 Поделиться email',es:'📧 Compartir email',ar:'📧 مشاركة بريد إلكتروني'},
-  smartAlerts:{he:'🔔 התראות חכמות',en:'🔔 Smart Alerts',ru:'🔔 Умные уведомления',es:'🔔 Alertas inteligentes',ar:'🔔 تنبيهات ذكية'},
-  temperatureMonitor:{he:'🌡️ ניטור טמפרטורות',en:'🌡️ Temperature Monitor',ru:'🌡️ Монитор температуры',es:'🌡️ Monitor de temperatura',ar:'🌡️ مراقبة درجة الحرارة'},
-  pressureMonitor:{he:'🔩 ניטור לחצים',en:'🔩 Pressure Monitor',ru:'🔩 Монитор давления',es:'🔩 Monitor de presión',ar:'🔩 مراقبة الضغط'},
-  safetyCheck:{he:'🛡️ בדיקת בטיחות',en:'🛡️ Safety Check',ru:'🛡️ Проверка безопасности',es:'🛡️ Verificación de seguridad',ar:'🛡️ فحص السلامة'},
-  simpleMode:{he:'🎯 מצב פשוט',en:'🎯 Simple Mode',ru:'🎯 Простой режим',es:'🎯 Modo simple',ar:'🎯 الوضع البسيط'},
-  customTheme:{he:'🎨 ערכת מותאמת אישית',en:'🎨 Custom Theme',ru:'🎨 Кастомная тема',es:'🎨 Tema personalizado',ar:'🎨 سمة مخصصة'},
-  favorites:{he:'⭐ מועדפים',en:'⭐ Favorites',ru:'⭐ Избранное',es:'⭐ Favoritos',ar:'⭐ المفضلة'},
-  autoScan:{he:'🔄 סריקה אוטומטית',en:'🔄 Auto Scan',ru:'🔄 Автоскан',es:'🔄 Escaneo automático',ar:'🔄 مسح تلقائي'},
-  scheduleScan:{he:'⏰ תזמן סריקה',en:'⏰ Schedule Scan',ru:'⏰ Планировать скан',es:'⏰ Programar escaneo',ar:'⏰ جدولة المسح'},
-  advancedDTC:{he:'🔧 DTC מתקדם',en:'🔧 Advanced DTC',ru:'🔧 Расширенный DTC',es:'🔧 DTC avanzado',ar:'🔧 DTC متقدم'},
-  liveCharts:{he:'📊 גרפים חיים',en:'📊 Live Charts',ru:'📊 Живые графики',es:'📊 Gráficos en vivo',ar:'📊 رسوم بيانية حية'},
-  recallCheck:{he:'📋 בדיקת רקולים',en:'📋 Recall Check',ru:'📋 Проверка отзывов',es:'📋 Verificación de recalls',ar:'📋 فحص الاستدعاءات'},
-  vehicleSpecs:{he:'📋 מפרט רכב',en:'📋 Vehicle Specs',ru:'📋 Характеристики авто',es:'📋 Especificaciones vehículo',ar:'📋 مواصفات المركبة'},
-  reportTemplates:{he:'📝 תבניות דוח',en:'📝 Report Templates',ru:'📝 Шаблоны отчетов',es:'📝 Plantillas de informe',ar:'📝 قوالب التقارير'},
-  notifications:{he:'🔔 התראות',en:'🔔 Notifications',ru:'🔔 Уведомления',es:'🔔 Notificaciones',ar:'🔔 إشعارات'},
-  copyReport:{he:'📋 העתק דוח',en:'📋 Copy Report',ru:'📋 Копировать отчет',es:'📋 Copiar informe',ar:'📋 نسخ التقرير'},
-  vinDecode:{he:'🔍 פענוח VIN',en:'🔍 Decode VIN',ru:'🔨 Расшифровка VIN',es:'🔨 Decodificar VIN',ar:'🔨 فك شفرة VIN'},
-  odometerTrends:{he:'📈 מגמות ק"מ',en:'📈 Odometer Trends',ru:'📈 Тренды пробега',es:'📈 Tendencias odómetro',ar:'📈 اتجاهات العداد'},
-  suspiciousActivity:{he:'⚠️ פעילות חשודות',en:'⚠️ Suspicious Activity',ru:'⚠️ Подозрительная активность',es:'⚠️ Actividad sospechosa',ar:'⚠️ نشاط مشبوه'},
-  enginePerformance:{he:'⚙️ ביצוע מנוע',en:'⚙️ Engine Performance',ru:'⚙️ Производительность двигателя',es:'⚙️ Rendimiento motor',ar:'⚙️ أداء المحرك'},
-  fuelEfficiency:{he:'⛽ יעילות דלק',en:'⛽ Fuel Efficiency',ru:'⛽ Расход топлива',es:'⛽ Eficiencia combustible',ar:'⛽ كفاءة الوقود'},
-  batteryHealth:{he:'🔋 בריאות סוללה',en:'🔋 Battery Health',ru:'🔋 Здоровье батареи',es:'🔋 Salud batería',ar:'🔋 صحة البطارية'},
-  maintenanceSchedule:{he:'🔧 לוח תחזוקה',en:'🔧 Maintenance Schedule',ru:'🔧 График обслуживания',es:'🔧 Calendario mantenimiento',ar:'🔧 جدول الصيانة'},
-  help:{he:'❓ עזרה',en:'❓ Help',ru:'❓ Справка',es:'❓ Ayuda',ar:'❓ مساعدة'},
-  settings:{he:'⚙️ הגדרות',en:'⚙️ Settings',ru:'⚙️ Настройки',es:'⚙️ Configuración',ar:'⚙️ الإعدادات'},
-  darkMode:{he:'🌙 מצב כהה',en:'🌙 Dark Mode',ru:'🌙 Темный режим',es:'🌙 Modo oscuro',ar:'🌙 الوضع الداكن'},
-  lightMode:{he:'☀️ מצב בהיר',en:'☀️ Light Mode',ru:'☀️ Светлый режим',es:'☀️ Modo claro',ar:'☀️ الوضع الفاتح'},
-  language:{he:'🌐 שפה',en:'🌐 Language',ru:'🌐 Язык',es:'🌐 Idioma',ar:'🌐 اللغة'},
-  french:{he:'🇫🇷 צרפתית',en:'🇫🇷 French',ru:'🇫🇷 Французский',es:'🇫🇷 Francés',ar:'🇫🇷 الفرنسية'},
-  german:{he:'🇩🇪 גרמנית',en:'🇩🇪 German',ru:'🇩🇪 Немецкий',es:'🇩🇪 Alemán',ar:'🇩🇪 الألمانية'},
-  italian:{he:'🇮🇹 איטלקית',en:'🇮🇹 Italian',ru:'🇮🇹 Итальянский',es:'🇮🇹 Italiano',ar:'🇮🇹 الإيطالية'},
-  portuguese:{he:'🇵🇹 פורטוגזית',en:'🇵🇹 Portuguese',ru:'🇵🇹 Португальский',es:'🇵🇹 Portugués',ar:'🇵🇹 البرتغالية'},
-  chinese:{he:'🇨🇳 סינית',en:'🇨🇳 Chinese',ru:'🇨🇳 Китайский',es:'🇨🇳 Chino',ar:'🇨� الصينية'},
-  japanese:{he:'🇯🇵 יפנית',en:'🇯🇵 Japanese',ru:'🇯🇵 Японский',es:'🇯🇵 Japonés',ar:'🇯🇵 اليابانية'},
-  korean:{he:'🇰🇷 קוריאנית',en:'🇰🇷 Korean',ru:'🇰🇷 Корейский',es:'🇰🇷 Coreano',ar:'🇰🇷 الكورية'},
-  dutch:{he:'🇳🇱 הולנדית',en:'🇳🇱 Dutch',ru:'🇳🇱 Голландский',es:'🇳🇱 Holandés',ar:'🇳🇱 الهولندية'},
-  polish:{he:'🇵🇱 פולנית',en:'🇵🇱 Polish',ru:'🇵🇱 Польский',es:'🇵🇱 Polaco',ar:'🇵🇱 البولندية'},
-  turkish:{he:'🇹🇷 טורקית',en:'🇹🇷 Turkish',ru:'🇹🇷 Турецкий',es:'🇹🇷 Turco',ar:'🇹🷷 التركية'},
-  hindi:{he:'🇮🇳 הינדית',en:'🇮🇳 Hindi',ru:'🇮🇳 Хинди',es:'🇮🇳 Hindi',ar:'🇮🇳 الهندية'},
-  arabic:{he:'🇸🇦 ערבית',en:'🇸🇦 Arabic',ru:'🇸🇦 Арабский',es:'🇸🇦 Árabe',ar:'🇸🦦 العربية'},
-  spanish:{he:'🇪🇸 ספרדית',en:'🇪🇸 Spanish',ru:'🇪🇸 Испанский',es:'🇪🇸 Español',ar:'🇪🇸 الإسبانية'},
-  russian:{he:'🇷🇺 רוסית',en:'🇷🇺 Russian',ru:'🇷� Русский',es:'🇷🇺 Ruso',ar:'🇷� الروسية'},
-  hebrew:{he:'🇮🇱 עברית',en:'🇮🇱 Hebrew',ru:'🇮🇱 Иврит',es:'🇮🇱 Hebreo',ar:'🇮🇱 العبرية'},
-  english:{he:'🇬🇧 אנגלית',en:'🇬🇧 English',ru:'🇬🇧 Английский',es:'🇬🇧 Inglés',ar:'🇬🇧 الإنجليزية'}
-};
   connect: {
     he: '🔗 חיבור',
     en: '🔗 Connect',
@@ -981,7 +860,7 @@ function parseDTC(h) {
 }
 
 // ═══════════════════════════════════════════
-// ECU ADDRESSES - Extended list for better coverage
+// ECU ADDRESSES
 // ═══════════════════════════════════════════
 const ECUS = [{
   a: '7E0',
@@ -1078,212 +957,6 @@ const ECUS = [{
   r: '7ED',
   n: 'ADAS',
   h: 'נהיגה חכמה',
-  ic: '🚗'
-}, {
-  a: '700',
-  r: '708',
-  n: 'ECM2 — Engine 2',
-  h: 'מחשב מנוע 2',
-  ic: '⚙️'
-}, {
-  a: '710',
-  r: '718',
-  n: 'TCM2 — Transmission 2',
-  h: 'תיבת הילוכים 2',
-  ic: '🔄'
-}, {
-  a: '7C0',
-  r: '7C8',
-  n: 'IMMO — Immobilizer',
-  h: 'נעילת מנוע',
-  ic: '🔒'
-}, {
-  a: '7D5',
-  r: '7DD',
-  n: '4WD — Four Wheel Drive',
-  h: 'הנעה כפולה',
-  ic: '🚙'
-}, {
-  a: '7E3',
-  r: '7EB',
-  n: 'Hybrid Control',
-  h: 'בקר היברידי',
-  ic: '🔋'
-}, {
-  a: '7E4',
-  r: '7EC',
-  n: 'Battery Management',
-  h: 'ניהול סוללה',
-  ic: '🔋'
-}, {
-  a: '7E6',
-  r: '7EE',
-  n: 'Brake System',
-  h: 'מערכת בלמים',
-  ic: '🛞'
-}, {
-  a: '7E7',
-  r: '7EF',
-  n: 'Steering Angle',
-  h: 'זוית הגה',
-  ic: '🎡'
-}, {
-  a: '7E8',
-  r: '7F0',
-  n: 'Chassis Control',
-  h: 'בקר שלדה',
-  ic: '🚗'
-}, {
-  a: '7F0',
-  r: '7F8',
-  n: 'Center Gateway',
-  h: 'שער מרכזי',
-  ic: '🌐'
-}, {
-  a: '711',
-  r: '719',
-  n: 'Transmission Alt',
-  h: 'תיבת הילוכים אלט',
-  ic: '🔄'
-}, {
-  a: '721',
-  r: '729',
-  n: 'Body Alt',
-  h: 'גוף אלט',
-  ic: '🚪'
-}, {
-  a: '731',
-  r: '739',
-  n: 'SRS Alt',
-  h: 'כריות אוויר אלט',
-  ic: '🛡️'
-}, {
-  a: '741',
-  r: '749',
-  n: 'Instrument Alt',
-  h: 'מחוונים אלט',
-  ic: '📊'
-}, {
-  a: '751',
-  r: '759',
-  n: 'ABS Alt',
-  h: 'בלמים אלט',
-  ic: '🛞'
-}, {
-  a: '761',
-  r: '769',
-  n: 'EPS Alt',
-  h: 'הגה כוח אלט',
-  ic: '🎡'
-}, {
-  a: '771',
-  r: '779',
-  n: 'HVAC Alt',
-  h: 'מיזוג אלט',
-  ic: '❄️'
-}, {
-  a: '781',
-  r: '789',
-  n: 'TPMS Alt',
-  h: 'לחץ צמיגים אלט',
-  ic: '🔵'
-}, {
-  a: '791',
-  r: '799',
-  n: 'Gateway Alt',
-  h: 'שער תקשורת אלט',
-  ic: '🌐'
-}, {
-  a: '7A1',
-  r: '7A9',
-  n: 'Parking Alt',
-  h: 'חנייה אלט',
-  ic: '🅿️'
-}, {
-  a: '7B1',
-  r: '7B9',
-  n: 'Key Alt',
-  h: 'מפתח חכם אלט',
-  ic: '🔑'
-}, {
-  a: '7C5',
-  r: '7CD',
-  n: 'Head Unit Alt',
-  h: 'מולטימדיה אלט',
-  ic: '🎵'
-}, {
-  a: '7D1',
-  r: '7D9',
-  n: 'Park Brake Alt',
-  h: 'בלם חנייה אלט',
-  ic: '🅿️'
-}, {
-  a: '7E9',
-  r: '7F1',
-  n: 'ADAS Alt',
-  h: 'נהיגה חכמה אלט',
-  ic: '🚗'
-}, {
-  a: '701',
-  r: '709',
-  n: 'Engine 2 Alt',
-  h: 'מחשב מנוע 2 אלט',
-  ic: '⚙️'
-}, {
-  a: '712',
-  r: '71A',
-  n: 'Transmission 2 Alt',
-  h: 'תיבת הילוכים 2 אלט',
-  ic: '🔄'
-}, {
-  a: '7C1',
-  r: '7C9',
-  n: 'Immobilizer Alt',
-  h: 'נעילת מנוע אלט',
-  ic: '🔒'
-}, {
-  a: '7D6',
-  r: '7DE',
-  n: '4WD Alt',
-  h: 'הנעה כפולה אלט',
-  ic: '🚙'
-}, {
-  a: '7E3',
-  r: '7EB',
-  n: 'Hybrid Control Alt',
-  h: 'בקר היברידי אלט',
-  ic: '🔋'
-}, {
-  a: '7E4',
-  r: '7EC',
-  n: 'Battery Management Alt',
-  h: 'ניהול סוללה אלט',
-  ic: '🔋'
-}, {
-  a: '7E6',
-  r: '7EE',
-  n: 'Brake System Alt',
-  h: 'מערכת בלמים אלט',
-  ic: '🛞'
-}, {
-  a: '7E7',
-  r: '7EF',
-  n: 'Steering Angle Alt',
-  h: 'זוית הגה אלט',
-  ic: '🎡'
-}, {
-  a: '7E8',
-  r: '7F0',
-  n: 'Chassis Control Alt',
-  h: 'בקר שלדה אלט',
-  ic: '🚗'
-}, {
-  a: '7F1',
-  r: '7F9',
-  n: 'Center Gateway Alt',
-  h: 'שער מרכזי אלט',
-  ic: '🌐'
-}];
   ic: '🛰️'
 }, {
   a: '7E6',
@@ -1292,7 +965,7 @@ const ECUS = [{
   h: 'ניהול מצבר',
   ic: '🔋'
 }];
-const DEMO_ACTIVE = new Set(['7E0', '7E1', '740', '750', '730', '720', '760', '790', '7E2', '7E3', '7E4', '7E5', '7E6', '7E7', '7E8', '7F0', '700', '710', '7C0', '7D5', '711', '721', '731', '741', '751', '761', '771', '781', '791', '7A1', '7B1', '7C1', '7D6', '712', '7C1', '7D6', '7F1']);
+const DEMO_ACTIVE = new Set(['7E0', '7E1', '740', '750', '730', '720', '760', '790']);
 const UDS_DIDS = [{
   d: 'F190',
   n: 'VIN',
@@ -1319,422 +992,6 @@ const UDS_DIDS = [{
   n: 'Odometer',
   h: 'ק"מ',
   crit: true
-}, {
-  d: 'F010',
-  n: 'Odometer Alt',
-  h: 'ק"מ אלט',
-  crit: true
-}, {
-  d: 'F011',
-  n: 'Odometer 2',
-  h: 'ק"מ 2',
-  crit: true
-}, {
-  d: 'F012',
-  n: 'Odometer 3',
-  h: 'ק"מ 3',
-  crit: true
-}, {
-  d: 'F020',
-  n: 'Distance Total',
-  h: 'מרחק כולל',
-  crit: true
-}, {
-  d: 'F021',
-  n: 'Distance Trip',
-  h: 'מרחק נסיעה',
-  crit: true
-}, {
-  d: 'F022',
-  n: 'Distance Service',
-  h: 'מרחק שירות',
-  crit: true
-}, {
-  d: 'F190',
-  n: 'VIN',
-  h: 'שילדה',
-  crit: true
-}, {
-  d: 'F194',
-  n: 'Supplier Code',
-  h: 'קוד ספק'
-}, {
-  d: 'F198',
-  n: 'ECU Name',
-  h: 'שם מחשב'
-}, {
-  d: 'F1A0',
-  n: 'System Supplier',
-  h: 'ספק מערכת'
-}, {
-  d: 'F1A1',
-  n: 'ECU Software Date',
-  h: 'תאריך תוכנה'
-}, {
-  d: 'F1A5',
-  n: 'System Software Version',
-  h: 'גרסת תוכנה'
-}, {
-  d: 'F1A6',
-  n: 'Hardware Version',
-  h: 'גרסת חומרה'
-}, {
-  d: 'F1A7',
-  n: 'Software Version',
-  h: 'גרסת תוכנה'
-}, {
-  d: 'F1A8',
-  n: 'Boot Software Version',
-  h: 'גרסת Boot'
-}, {
-  d: 'F1A9',
-  n: 'Application Software Version',
-  h: 'גרסת אפליקציה'
-}, {
-  d: 'F1AA',
-  n: 'Data Version',
-  h: 'גרסת נתונים'
-}, {
-  d: 'F1AB',
-  n: 'Calibration Software Version',
-  h: 'גרסת כיול'
-}, {
-  d: 'F1AC',
-  n: 'Calibration Data Version',
-  h: 'גרסת נתוני כיול'
-}, {
-  d: 'F1AD',
-  n: 'Calibration Date',
-  h: 'תאריך כיול'
-}, {
-  d: 'F1AE',
-  n: 'Calibration Equipment',
-  h: 'ציוד כיול'
-}, {
-  d: 'F1AF',
-  n: 'Programmer',
-  h: 'מתכנת'
-}, {
-  d: 'F1B0',
-  n: 'Programming Date',
-  h: 'תאריך תכנות'
-}, {
-  d: 'F1B1',
-  n: 'Target Hardware',
-  h: 'חומרה יעד'
-}, {
-  d: 'F1B2',
-  n: 'Target Software',
-  h: 'תוכנה יעד'
-}, {
-  d: 'F1B3',
-  n: 'Serial Number',
-  h: 'מספר סידורי'
-}, {
-  d: 'F1B4',
-  n: 'Part Number',
-  h: 'מספר חלק'
-}, {
-  d: 'F1B5',
-  n: 'Assembly Number',
-  h: 'מספר הרכבה'
-}, {
-  d: 'F1B6',
-  n: 'Vehicle Manufacturer',
-  h: 'יצרן רכב'
-}, {
-  d: 'F1B7',
-  n: 'Vehicle Model',
-  h: 'דגם רכב'
-}, {
-  d: 'F1B8',
-  n: 'Vehicle Year',
-  h: 'שנת רכב'
-}, {
-  d: 'F1B9',
-  n: 'Vehicle Transmission',
-  h: 'תיבת הילוכים'
-}, {
-  d: 'F1BA',
-  n: 'Vehicle Engine',
-  h: 'מנוע'
-}, {
-  d: 'F1BB',
-  n: 'Vehicle Fuel Type',
-  h: 'סוג דלק'
-}, {
-  d: 'F1BC',
-  n: 'Vehicle Power',
-  h: 'הספק'
-}, {
-  d: 'F1BD',
-  n: 'Vehicle Weight',
-  h: 'משקל'
-}, {
-  d: 'F1BE',
-  n: 'Vehicle Color',
-  h: 'צבע'
-}, {
-  d: 'F1BF',
-  n: 'Vehicle Interior',
-  h: 'פנים'
-}, {
-  d: 'F1C0',
-  n: 'Vehicle Options',
-  h: 'אפשרויות'
-}, {
-  d: 'F1C1',
-  n: 'Vehicle Production Date',
-  h: 'תאריך ייצור'
-}, {
-  d: 'F1C2',
-  n: 'Vehicle Delivery Date',
-  h: 'תאריך מסירה'
-}, {
-  d: 'F1C3',
-  n: 'Vehicle Sale Date',
-  h: 'תאריך מכירה'
-}, {
-  d: 'F1C4',
-  n: 'Vehicle Warranty Start',
-  h: 'תחילת אחריות'
-}, {
-  d: 'F1C5',
-  n: 'Vehicle Warranty End',
-  h: 'סוף אחריות'
-}, {
-  d: 'F1C6',
-  n: 'Vehicle Service Date',
-  h: 'תאריך שירות'
-}, {
-  d: 'F1C7',
-  n: 'Vehicle Service Interval',
-  h: 'מרווח שירות'
-}, {
-  d: 'F1C8',
-  n: 'Vehicle Service Distance',
-  h: 'מרחק שירות'
-}, {
-  d: 'F1C9',
-  n: 'Vehicle Service Type',
-  h: 'סוג שירות'
-}, {
-  d: 'F1CA',
-  n: 'Vehicle Service Provider',
-  h: 'ספק שירות'
-}, {
-  d: 'F1CB',
-  n: 'Vehicle Service Notes',
-  h: 'הערות שירות'
-}, {
-  d: 'F1CC',
-  n: 'Vehicle Insurance',
-  h: 'ביטוח'
-}, {
-  d: 'F1CD',
-  n: 'Vehicle Registration',
-  h: 'רישום'
-}, {
-  d: 'F1CE',
-  n: 'Vehicle License Plate',
-  h: 'מספר רישוי'
-}, {
-  d: 'F1CF',
-  n: 'Vehicle VIN Check',
-  h: 'בדיקת שילדה'
-}, {
-  d: 'F1D0',
-  n: 'Vehicle Mileage',
-  h: 'ק"מ רכב',
-  crit: true
-}, {
-  d: 'F1D1',
-  n: 'Vehicle Hours',
-  h: 'שעות רכב'
-}, {
-  d: 'F1D2',
-  n: 'Vehicle Trips',
-  h: 'נסיעות'
-}, {
-  d: 'F1D3',
-  n: 'Vehicle Fuel Consumption',
-  h: 'צריכת דלק'
-}, {
-  d: 'F1D4',
-  n: 'Vehicle Fuel Range',
-  h: 'טווח דלק'
-}, {
-  d: 'F1D5',
-  n: 'Vehicle Fuel Level',
-  h: 'מפלס דלק'
-}, {
-  d: 'F1D6',
-  n: 'Vehicle Oil Level',
-  h: 'מפלס שמן'
-}, {
-  d: 'F1D7',
-  n: 'Vehicle Oil Life',
-  h: 'אורך חיי שמן'
-}, {
-  d: 'F1D8',
-  n: 'Vehicle Oil Pressure',
-  h: 'לחץ שמן'
-}, {
-  d: 'F1D9',
-  n: 'Vehicle Oil Temperature',
-  h: 'טמפ\' שמן'
-}, {
-  d: 'F1DA',
-  n: 'Vehicle Coolant Level',
-  h: 'מפלס קירור'
-}, {
-  d: 'F1DB',
-  n: 'Vehicle Coolant Temperature',
-  h: 'טמפ\' קירור'
-}, {
-  d: 'F1DC',
-  n: 'Vehicle Coolant Pressure',
-  h: 'לחץ קירור'
-}, {
-  d: 'F1DD',
-  n: 'Vehicle Battery Level',
-  h: 'מפלס סוללה'
-}, {
-  d: 'F1DE',
-  n: 'Vehicle Battery Voltage',
-  h: 'מתח סוללה'
-}, {
-  d: 'F1DF',
-  n: 'Vehicle Battery Temperature',
-  h: 'טמפ\' סוללה'
-}, {
-  d: 'F1E0',
-  n: 'Vehicle Battery Current',
-  h: 'זרם סוללה'
-}, {
-  d: 'F1E1',
-  n: 'Vehicle Battery Health',
-  h: 'בריאות סוללה'
-}, {
-  d: 'F1E2',
-  n: 'Vehicle Battery Cycles',
-  h: 'מחזורי סוללה'
-}, {
-  d: 'F1E3',
-  n: 'Vehicle Battery Capacity',
-  h: 'קיבולת סוללה'
-}, {
-  d: 'F1E4',
-  n: 'Vehicle Battery Charge',
-  h: 'טעינת סוללה'
-}, {
-  d: 'F1E5',
-  n: 'Vehicle Battery Discharge',
-  h: 'פריקת סוללה'
-}, {
-  d: 'F1E6',
-  n: 'Vehicle Battery Time',
-  h: 'זמן סוללה'
-}, {
-  d: 'F1E7',
-  n: 'Vehicle Battery Power',
-  h: 'הספק סוללה'
-}, {
-  d: 'F1E8',
-  n: 'Vehicle Battery Energy',
-  h: 'אנרגיה סוללה'
-}, {
-  d: 'F1E9',
-  n: 'Vehicle Battery Efficiency',
-  h: 'יעילות סוללה'
-}, {
-  d: 'F1EA',
-  n: 'Vehicle Battery Regeneration',
-  h: 'הטענה חוזרת'
-}, {
-  d: 'F1EB',
-  n: 'Vehicle Battery Heating',
-  h: 'חימום סוללה'
-}, {
-  d: 'F1EC',
-  n: 'Vehicle Battery Cooling',
-  h: 'קירור סוללה'
-}, {
-  d: 'F1ED',
-  n: 'Vehicle Battery Balancing',
-  h: 'איזון סוללה'
-}, {
-  d: 'F1EE',
-  n: 'Vehicle Battery Protection',
-  h: 'הגנת סוללה'
-}, {
-  d: 'F1EF',
-  n: 'Vehicle Battery Safety',
-  h: 'בטיחות סוללה'
-}, {
-  d: 'F1F0',
-  n: 'Vehicle Battery Warning',
-  h: 'אזהרת סוללה'
-}, {
-  d: 'F1F1',
-  n: 'Vehicle Battery Error',
-  h: 'שגיאת סוללה'
-}, {
-  d: 'F1F2',
-  n: 'Vehicle Battery Fault',
-  h: 'תקלת סוללה'
-}, {
-  d: 'F1F3',
-  n: 'Vehicle Battery Failure',
-  h: 'כשל סוללה'
-}, {
-  d: 'F1F4',
-  n: 'Vehicle Battery Status',
-  h: 'סטטוס סוללה'
-}, {
-  d: 'F1F5',
-  n: 'Vehicle Battery Mode',
-  h: 'מצב סוללה'
-}, {
-  d: 'F1F6',
-  n: 'Vehicle Battery Type',
-  h: 'סוג סוללה'
-}, {
-  d: 'F1F7',
-  n: 'Vehicle Battery Manufacturer',
-  h: 'יצרן סוללה'
-}, {
-  d: 'F1F8',
-  n: 'Vehicle Battery Model',
-  h: 'דגם סוללה'
-}, {
-  d: 'F1F9',
-  n: 'Vehicle Battery Serial',
-  h: 'סידורי סוללה'
-}, {
-  d: 'F1FA',
-  n: 'Vehicle Battery Production',
-  h: 'ייצור סוללה'
-}, {
-  d: 'F1FB',
-  n: 'Vehicle Battery Warranty',
-  h: 'אחריות סוללה'
-}, {
-  d: 'F1FC',
-  n: 'Vehicle Battery Life',
-  h: 'אורך חיי סוללה'
-}, {
-  d: 'F1FD',
-  n: 'Vehicle Battery Replacement',
-  h: 'החלפת סוללה'
-}, {
-  d: 'F1FE',
-  n: 'Vehicle Battery Recycling',
-  h: 'מיחזור סוללה'
-}, {
-  d: 'F1FF',
-  n: 'Vehicle Battery Disposal',
-  h: 'סילוק סוללה'
 }];
 
 // ═══════════════════════════════════════════
@@ -1798,55 +1055,6 @@ function demoResp(cmd) {
       b2 = km >> 8 & 0xFF,
       b3 = km & 0xFF;
     return `62 02 00 ${b1.toString(16).padStart(2, '0')} ${b2.toString(16).padStart(2, '0')} ${b3.toString(16).padStart(2, '0')}`;
-  }
-  // Support for new odometer commands
-  if (c === '22F010') {
-    const km = 85000 + Math.floor(Math.random() * 2000);
-    const b1 = km >> 16 & 0xFF,
-      b2 = km >> 8 & 0xFF,
-      b3 = km & 0xFF;
-    return `62 F0 10 ${b1.toString(16).padStart(2, '0')} ${b2.toString(16).padStart(2, '0')} ${b3.toString(16).padStart(2, '0')}`;
-  }
-  if (c === '22F011') {
-    const km = 84000 + Math.floor(Math.random() * 1000);
-    const b1 = km >> 16 & 0xFF,
-      b2 = km >> 8 & 0xFF,
-      b3 = km & 0xFF;
-    return `62 F0 11 ${b1.toString(16).padStart(2, '0')} ${b2.toString(16).padStart(2, '0')} ${b3.toString(16).padStart(2, '0')}`;
-  }
-  if (c === '22F012') {
-    const km = 83000 + Math.floor(Math.random() * 1000);
-    const b1 = km >> 16 & 0xFF,
-      b2 = km >> 8 & 0xFF,
-      b3 = km & 0xFF;
-    return `62 F0 12 ${b1.toString(16).padStart(2, '0')} ${b2.toString(16).padStart(2, '0')} ${b3.toString(16).padStart(2, '0')}`;
-  }
-  if (c === '22F020') {
-    const km = 86000 + Math.floor(Math.random() * 3000);
-    const b1 = km >> 16 & 0xFF,
-      b2 = km >> 8 & 0xFF,
-      b3 = km & 0xFF;
-    return `62 F0 20 ${b1.toString(16).padStart(2, '0')} ${b2.toString(16).padStart(2, '0')} ${b3.toString(16).padStart(2, '0')}`;
-  }
-  if (c === '22F021') {
-    const km = 500 + Math.floor(Math.random() * 200);
-    const b1 = km >> 8 & 0xFF,
-      b2 = km & 0xFF;
-    return `62 F0 21 ${b1.toString(16).padStart(2, '0')} ${b2.toString(16).padStart(2, '0')}`;
-  }
-  if (c === '22F022') {
-    const km = 15000 + Math.floor(Math.random() * 1000);
-    const b1 = km >> 16 & 0xFF,
-      b2 = km >> 8 & 0xFF,
-      b3 = km & 0xFF;
-    return `62 F0 22 ${b1.toString(16).padStart(2, '0')} ${b2.toString(16).padStart(2, '0')} ${b3.toString(16).padStart(2, '0')}`;
-  }
-  if (c === '22F1D0') {
-    const km = 87000 + Math.floor(Math.random() * 2500);
-    const b1 = km >> 16 & 0xFF,
-      b2 = km >> 8 & 0xFF,
-      b3 = km & 0xFF;
-    return `62 F1 D0 ${b1.toString(16).padStart(2, '0')} ${b2.toString(16).padStart(2, '0')} ${b3.toString(16).padStart(2, '0')}`;
   }
   const pid = c.length >= 4 ? c.substring(2) : '';
   const p = PIDS[pid];
@@ -2080,28 +1288,6 @@ function App() {
   const [odoResults, setOResults] = useState([]);
   const [odoRawLog, setORaw] = useState([]);
   const [odoKnownKm, setOKm] = useState('');
-  
-  // New states for advanced features
-  const [scanHistory, setScanHistory] = useState([]);
-  const [kmHistory, setKmHistory] = useState([]);
-  const [vehicleHistory, setVehicleHistory] = useState([]);
-  const [savedVehicles, setSavedVehicles] = useState([]);
-  const [currentVehicle, setCurrentVehicle] = useState(null);
-  const [favoriteECUs, setFavoriteECUs] = useState([]);
-  const [autoScanEnabled, setAutoScanEnabled] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [temperatureData, setTemperatureData] = useState([]);
-  const [pressureData, setPressureData] = useState([]);
-  const [safetySystems, setSafetySystems] = useState({});
-  const [simpleMode, setSimpleMode] = useState(false);
-  const [customTheme, setCustomTheme] = useState(null);
-  const [advancedDTC, setAdvancedDTC] = useState(null);
-  const [ecuTestResults, setEcuTestResults] = useState([]);
-  const [liveCharts, setLiveCharts] = useState({});
-  const [exportFormat, setExportFormat] = useState('csv');
-  const [scanSchedule, setScanSchedule] = useState(null);
-  const [reportTemplates, setReportTemplates] = useState([]);
-  
   const t = useCallback(k => T[k]?.[lang] || T[k]?.en || k, [lang]);
   const isRTL = RTL.includes(lang);
   const bleDevRef = useRef(null);
@@ -2121,527 +1307,6 @@ function App() {
     t: new Date().toLocaleTimeString()
   }]), []);
 
-  // ─── SAVE SCAN HISTORY ───
-  const saveScanHistory = useCallback((scanData) => {
-    const historyEntry = {
-      timestamp: new Date().toISOString(),
-      vehicleInfo: vehicleInfo,
-      ecuList: ecuList.filter(e => e.ok),
-      kmRpt: kmRpt,
-      dtcList: dtcList,
-      readyData: readyData,
-      vehicle: currentVehicle
-    };
-    
-    const newHistory = [...scanHistory, historyEntry];
-    setScanHistory(newHistory);
-    
-    try {
-      localStorage.setItem('obdScanHistory', JSON.stringify(newHistory.slice(-50)));
-    } catch (e) {
-      console.error('Failed to save history:', e);
-    }
-    
-    if (kmRpt.length > 0) {
-      const kmEntry = {
-        timestamp: new Date().toISOString(),
-        kms: kmRpt,
-        vehicle: currentVehicle || vehicleInfo.vin
-      };
-      setKmHistory(prev => [...prev, kmEntry].slice(-20));
-    }
-  }, [scanHistory, vehicleInfo, ecuList, kmRpt, dtcList, readyData, currentVehicle]);
-
-  // ─── COMPARE KILOMETERS ───
-  const compareKilometers = useCallback(() => {
-    if (kmRpt.length < 2) return null;
-    
-    const kms = kmRpt.map(r => parseInt(r.km) || 0);
-    const maxKm = Math.max(...kms);
-    const minKm = Math.min(...kms);
-    const diff = maxKm - minKm;
-    
-    const suspicious = kmRpt.filter(r => {
-      const km = parseInt(r.km) || 0;
-      return Math.abs(km - minKm) > 10000;
-    });
-    
-    return {
-      maxKm,
-      minKm,
-      diff,
-      suspicious,
-      isSuspicious: diff > 10000,
-      message: diff > 10000 ? '⚠️ חשד להורדת ק"מ!' : '✅ הק"מ תקין'
-    };
-  }, [kmRpt]);
-
-  // ─── DETECT ODOMETER ROLLBACK ───
-  const detectOdometerRollback = useCallback(() => {
-    if (kmHistory.length < 2) return null;
-    
-    const sortedHistory = [...kmHistory].sort((a, b) => 
-      new Date(a.timestamp) - new Date(b.timestamp)
-    );
-    
-    let detected = false;
-    let rollbackDetails = [];
-    
-    for (let i = 1; i < sortedHistory.length; i++) {
-      const current = sortedHistory[i];
-      const previous = sortedHistory[i - 1];
-      
-      if (current.kms && previous.kms) {
-        const currentMax = Math.max(...current.kms.map(k => parseInt(k.km) || 0));
-        const previousMax = Math.max(...previous.kms.map(k => parseInt(k.km) || 0));
-        
-        if (currentMax < previousMax - 1000) {
-          detected = true;
-          rollbackDetails.push({
-            date: current.timestamp,
-            previousKm: previousMax,
-            currentKm: currentMax,
-            decrease: previousMax - currentMax
-          });
-        }
-      }
-    }
-    
-    return detected ? {
-      detected,
-      details: rollbackDetails,
-      message: `🚨 זוהו ${rollbackDetails.length} מקרים של ירידת ק"מ!`
-    } : null;
-  }, [kmHistory]);
-
-  // ─── DECODE VIN ───
-  const decodeVIN = useCallback((vin) => {
-    if (!vin || vin.length !== 17) return null;
-    
-    const wmi = vin.substring(0, 3);
-    const vds = vin.substring(3, 9);
-    const vis = vin.substring(9, 17);
-    
-    const countryCodes = {
-      'J': 'Japan', 'K': 'Korea', 'L': 'China', 'M': 'Thailand',
-      'S': 'UK', 'T': 'Czech Republic', 'V': 'France', 'W': 'Germany',
-      'X': 'Russia', 'Y': 'Sweden', 'Z': 'Italy',
-      '1': 'USA', '2': 'Canada', '3': 'Mexico', '4': 'USA', '5': 'USA'
-    };
-    
-    const country = countryCodes[vin.charAt(0)] || 'Unknown';
-    
-    const yearMap = {
-      'A': 2010, 'B': 2011, 'C': 2012, 'D': 2013, 'E': 2014,
-      'F': 2015, 'G': 2016, 'H': 2017, 'J': 2018, 'K': 2019,
-      'L': 2020, 'M': 2021, 'N': 2022, 'P': 2023, 'R': 2024,
-      'S': 2025, 'T': 2026, 'V': 2027, 'W': 2028, 'X': 2029,
-      'Y': 2030, '1': 2001, '2': 2002, '3': 2003, '4': 2004,
-      '5': 2005, '6': 2006, '7': 2007, '8': 2008, '9': 2009
-    };
-    
-    const year = yearMap[vin.charAt(9)] || 'Unknown';
-    
-    return { wmi, vds, vis, country, year, vin };
-  }, []);
-
-  // ─── GET VEHICLE INFO FROM VIN ───
-  const getVehicleInfoFromVIN = useCallback(async (vin) => {
-    if (!vin || vin.length !== 17) {
-      addLog('Invalid VIN format', 'error');
-      return null;
-    }
-    
-    addLog('Getting vehicle info from VIN...', 'info');
-    
-    const decodedVIN = decodeVIN(vin);
-    if (decodedVIN) {
-      addLog(`VIN decoded: ${decodedVIN.country}, ${decodedVIN.year}`, 'success');
-    }
-    
-    try {
-      const response = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/${vin}?format=json`);
-      if (response.ok) {
-        const data = await response.json();
-        const results = data.Results;
-        
-        const vehicleInfo = {
-          vin: vin,
-          make: results.find(r => r.Variable === 'Make')?.Value,
-          model: results.find(r => r.Variable === 'Model')?.Value,
-          year: results.find(r => r.Variable === 'Model Year')?.Value,
-          manufacturer: results.find(r => r.Variable === 'Manufacturer')?.Value,
-          plant: results.find(r => r.Variable === 'Plant City')?.Value,
-          body: results.find(r => r.Variable === 'Body Class')?.Value,
-          fuel: results.find(r => r.Variable === 'Fuel Type Primary')?.Value,
-          engine: results.find(r => r.Variable === 'Engine Model')?.Value,
-          transmission: results.find(r => r.Variable === 'Transmission Style')?.Value,
-          drive: results.find(r => r.Variable === 'Drive Type')?.Value,
-          doors: results.find(r => r.Variable === 'Doors')?.Value,
-          gvwr: results.find(r => r.Variable === 'Gross Vehicle Weight Rating')?.Value
-        };
-        
-        addLog('Vehicle info retrieved from NHTSA', 'success');
-        return vehicleInfo;
-      }
-    } catch (e) {
-      addLog('Failed to get vehicle info from API', 'warning');
-    }
-    
-    return decodedVIN;
-  }, [decodeVIN, addLog]);
-
-  // ─── EXPORT TO CSV ───
-  const exportToCSV = useCallback(() => {
-    const csvData = [];
-    
-    csvData.push(['VEHICLE INFORMATION']);
-    csvData.push(['VIN', vehicleInfo.vin || 'N/A']);
-    csvData.push(['Protocol', vehicleInfo.proto || 'N/A']);
-    csvData.push(['Battery', vehicleInfo.batt || 'N/A']);
-    csvData.push([]);
-    
-    csvData.push(['ECU SCAN RESULTS']);
-    csvData.push(['ECU Name', 'Address', 'Status', 'Kilometers', 'DTCs']);
-    
-    ecuList.filter(e => e.ok).forEach(ecu => {
-      const det = ecuDet[ecu.a];
-      const km = det?.odometer || det?.['0200'] || det?.['F010'] || 'N/A';
-      const dtcs = det?.dtcs?.map(d => d.code).join(', ') || 'None';
-      
-      csvData.push([
-        ecu.h || ecu.n,
-        ecu.a,
-        'Active',
-        km,
-        dtcs
-      ]);
-    });
-    
-    csvData.push([]);
-    
-    csvData.push(['TROUBLE CODES']);
-    csvData.push(['Code', 'Description', 'Status']);
-    
-    dtcList.forEach(dtc => {
-      csvData.push([dtc.code, dtc.desc, 'Confirmed']);
-    });
-    
-    dtcPending.forEach(dtc => {
-      csvData.push([dtc.code, dtc.desc, 'Pending']);
-    });
-    
-    csvData.push([]);
-    csvData.push(['Scan Date', new Date().toLocaleString()]);
-    
-    const csvString = csvData.map(row => 
-      row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
-    ).join('\n');
-    
-    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', `OBD_Scan_${vehicleInfo.vin || 'vehicle'}_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    addLog('CSV exported successfully', 'success');
-  }, [vehicleInfo, ecuList, ecuDet, dtcList, dtcPending, addLog]);
-
-  // ─── EXPORT TO PDF ───
-  const exportToPDF = useCallback(() => {
-    const reportHTML = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>OBD Scanner Pro Report</title>
-        <style>
-          body { font-family: Arial, sans-serif; direction: rtl; padding: 20px; }
-          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #f59e0b; padding-bottom: 20px; }
-          .section { margin-bottom: 20px; }
-          .section-title { font-size: 18px; font-weight: bold; color: #f59e0b; margin-bottom: 10px; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
-          th { background-color: #f59e0b; color: white; }
-          .confirmed { color: #dc2626; }
-          .pending { color: #f59e0b; }
-          .ok { color: #16a34a; }
-          .warning { color: #f59e0b; }
-          .footer { margin-top: 30px; border-top: 1px solid #ddd; padding-top: 10px; font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>🔧 OBD Scanner Pro Report</h1>
-          <p>${t('aboutTxt')}</p>
-          <p>${new Date().toLocaleString('he-IL')}</p>
-        </div>
-        
-        <div class="section">
-          <div class="section-title">מידע רכב</div>
-          <table>
-            <tr><th>VIN</th><td>${vehicleInfo.vin || 'N/A'}</td></tr>
-            <tr><th>פרוטוקול</th><td>${vehicleInfo.proto || 'N/A'}</td></tr>
-            <tr><th>מתח סוללה</th><td>${vehicleInfo.batt || 'N/A'}V</td></tr>
-          </table>
-        </div>
-        
-        <div class="section">
-          <div class="section-title">סריקת מחשבים</div>
-          <table>
-            <tr><th>מחשב</th><th>כתובת</th><th>סטטוס</th><th>ק"מ</th><th>תקלות</th></tr>
-            ${ecuList.filter(e => e.ok).map(ecu => {
-              const det = ecuDet[ecu.a];
-              const km = det?.odometer || det?.['0200'] || det?.['F010'] || 'N/A';
-              const dtcs = det?.dtcs?.map(d => d.code).join(', ') || 'אין';
-              return `<tr>
-                <td>${ecu.h || ecu.n}</td>
-                <td>${ecu.a}</td>
-                <td class="ok">פעיל</td>
-                <td>${km}</td>
-                <td>${dtcs}</td>
-              </tr>`;
-            }).join('')}
-          </table>
-        </div>
-        
-        <div class="section">
-          <div class="section-title">השוואת ק"מ</div>
-          <table>
-            <tr><th>מחשב</th><th>ק"מ</th><th>סטטוס</th></tr>
-            ${kmRpt.map(r => {
-              const km = parseInt(r.km) || 0;
-              const maxKm = Math.max(...kmRpt.map(k => parseInt(k.km) || 0));
-              const isMax = km === maxKm;
-              const minKm = Math.min(...kmRpt.map(k => parseInt(k.km) || 0));
-              const isMin = km === minKm;
-              const status = kmRpt.length > 1 && (maxKm - minKm) > 10000 ? 
-                (isMax ? '✅ גבוה ביותר' : isMin ? '⚠️ נמוך ביותר' : 'אמצעי') : '✅ תקין';
-              
-              return `<tr>
-                <td>${r.name}</td>
-                <td>${r.km}</td>
-                <td class="${status.includes('⚠️') ? 'warning' : 'ok'}">${status}</td>
-              </tr>`;
-            }).join('')}
-          </table>
-        </div>
-        
-        <div class="section">
-          <div class="section-title">קודי תקלה</div>
-          ${dtcList.length > 0 ? `
-            <table>
-              <tr><th>קוד</th><th>תיאור</th><th>סטטוס</th></tr>
-              ${dtcList.map(d => `
-                <tr>
-                  <td class="confirmed">${d.code}</td>
-                  <td>${d.desc}</td>
-                  <td class="confirmed">מאושר</td>
-                </tr>
-              `).join('')}
-            </table>
-          ` : '<p class="ok">✅ אין תקלות מאושרות</p>'}
-          
-          ${dtcPending.length > 0 ? `
-            <h3>תקלות ממתינות</h3>
-            <table>
-              <tr><th>קוד</th><th>תיאור</th><th>סטטוס</th></tr>
-              ${dtcPending.map(d => `
-                <tr>
-                  <td class="pending">${d.code}</td>
-                  <td>${d.desc}</td>
-                  <td class="pending">ממתין</td>
-                </tr>
-              `).join('')}
-            </table>
-          ` : ''}
-        </div>
-        
-        <div class="footer">
-          <p>${t('copy')}</p>
-          <p>${t('warn')}</p>
-        </div>
-      </body>
-      </html>
-    `;
-    
-    const blob = new Blob([reportHTML], { type: 'text/html;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', `OBD_Report_${vehicleInfo.vin || 'vehicle'}_${new Date().toISOString().split('T')[0]}.html`);
-    link.style.visibility = 'hidden';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    addLog('PDF report exported successfully', 'success');
-  }, [vehicleInfo, ecuList, ecuDet, kmRpt, dtcList, dtcPending, t, addLog]);
-
-  // ─── SHARE TO WHATSAPP ───
-  const shareToWhatsApp = useCallback(() => {
-    let message = `🔧 *OBD Scanner Pro Report*\n`;
-    message += `📅 ${new Date().toLocaleString('he-IL')}\n\n`;
-    
-    if (vehicleInfo.vin) {
-      message += `🚗 VIN: ${vehicleInfo.vin}\n`;
-    }
-    
-    message += `\n📊 *סריקת מחשבים:*\n`;
-    const activeECUs = ecuList.filter(e => e.ok);
-    message += `נמצאו ${activeECUs.length} מחשבים פעילים\n\n`;
-    
-    if (kmRpt.length > 0) {
-      message += `📏 *השוואת ק"מ:*\n`;
-      kmRpt.forEach(r => {
-        message += `• ${r.name}: ${r.km}\n`;
-      });
-      message += '\n';
-    }
-    
-    if (dtcList.length > 0) {
-      message += `❌ *תקלות מאושרות (${dtcList.length}):*\n`;
-      dtcList.forEach(d => {
-        message += `• ${d.code}: ${d.desc}\n`;
-      });
-    } else {
-      message += `✅ אין תקלות מאושרות\n`;
-    }
-    
-    message += `\n${t('copy')}`;
-    
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
-    
-    addLog('Shared to WhatsApp', 'success');
-  }, [vehicleInfo, ecuList, kmRpt, dtcList, t, addLog]);
-
-  // ─── SMART ALERTS ───
-  const checkSmartAlerts = useCallback(() => {
-    const newAlerts = [];
-    
-    const rollback = detectOdometerRollback();
-    if (rollback && rollback.detected) {
-      newAlerts.push({
-        type: 'critical',
-        title: 'זיהוי הורדת ק"מ',
-        message: rollback.message,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    const engineTemp = liveData['05'];
-    if (engineTemp && parseFloat(engineTemp) > 100) {
-      newAlerts.push({
-        type: 'warning',
-        title: 'טמפרטורת מנוע גבוהה',
-        message: `טמפרטורת מנוע: ${engineTemp}°C`,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    const batteryVoltage = liveData['42'];
-    if (batteryVoltage && parseFloat(batteryVoltage) < 12.0) {
-      newAlerts.push({
-        type: 'warning',
-        title: 'מתח סוללה נמוך',
-        message: `מתח סוללה: ${batteryVoltage}V`,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    if (dtcList.length > 0) {
-      newAlerts.push({
-        type: 'error',
-        title: 'תקלות מאושרות',
-        message: `נמצאו ${dtcList.length} תקלות מאושרות`,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    if (dtcPending.length > 0) {
-      newAlerts.push({
-        type: 'info',
-        title: 'תקלות ממתינות',
-        message: `נמצאו ${dtcPending.length} תקלות ממתינות`,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    setAlerts(newAlerts);
-    
-    if (notificationsEnabled && newAlerts.length > 0) {
-      newAlerts.forEach(alert => {
-        if (Notification.permission === 'granted') {
-          new Notification(alert.title, {
-            body: alert.message,
-            icon: '/icon.svg'
-          });
-        }
-      });
-    }
-  }, [detectOdometerRollback, liveData, dtcList, dtcPending, notificationsEnabled]);
-
-  // ─── LOAD SAVED DATA ON STARTUP ───
-  useEffect(() => {
-    try {
-      const savedHistory = localStorage.getItem('obdScanHistory');
-      if (savedHistory) {
-        setScanHistory(JSON.parse(savedHistory));
-      }
-      
-      const savedVehiclesData = localStorage.getItem('obdSavedVehicles');
-      if (savedVehiclesData) {
-        setSavedVehicles(JSON.parse(savedVehiclesData));
-      }
-      
-      const savedKmHistory = localStorage.getItem('obdKmHistory');
-      if (savedKmHistory) {
-        setKmHistory(JSON.parse(savedKmHistory));
-      }
-      
-      const savedFavorites = localStorage.getItem('obdFavoriteECUs');
-      if (savedFavorites) {
-        setFavoriteECUs(JSON.parse(savedFavorites));
-      }
-      
-      const savedSettings = localStorage.getItem('obdSettings');
-      if (savedSettings) {
-        const settings = JSON.parse(savedSettings);
-        setAutoScanEnabled(settings.autoScanEnabled || false);
-        setNotificationsEnabled(settings.notificationsEnabled !== false);
-        setSimpleMode(settings.simpleMode || false);
-        if (settings.customTheme) setCustomTheme(settings.customTheme);
-      }
-    } catch (e) {
-      console.error('Failed to load saved data:', e);
-    }
-  }, []);
-
-  // ─── SAVE SETTINGS ───
-  const saveSettings = useCallback(() => {
-    const settings = {
-      autoScanEnabled,
-      notificationsEnabled,
-      simpleMode,
-      customTheme
-    };
-    
-    try {
-      localStorage.setItem('obdSettings', JSON.stringify(settings));
-    } catch (e) {
-      console.error('Failed to save settings:', e);
-    }
-  }, [autoScanEnabled, notificationsEnabled, simpleMode, customTheme]);
-
   // ─── SEND COMMAND ───
   const send = useCallback(async (cmd, timeout = 3000) => {
     return new Promise(async resolve => {
@@ -2656,18 +1321,9 @@ function App() {
         if (done) return;
         done = true;
         resolveFn.current = null;
-        
-        // Log command results for debugging
-        if (val && val !== 'TIMEOUT' && !val.includes('BUFFER_OVERFLOW')) {
-          console.log(`Cmd: ${cmd} → ${val.substring(0, 50)}${val.length > 50 ? '...' : ''}`);
-        } else if (val === 'TIMEOUT') {
-          console.warn(`Cmd: ${cmd} → TIMEOUT`);
-        }
-        
         resolve(val);
       };
       const timer = setTimeout(() => {
-        console.warn(`Timeout for command: ${cmd}`);
         finish(resBuf.current || 'TIMEOUT');
       }, timeout);
       resolveFn.current = d => {
@@ -2694,35 +1350,24 @@ function App() {
             }
           }, 40 + Math.random() * 80);
         } else if (cmRef.current === 'ble' && bleWrRef.current) {
-          console.log(`Sending BLE command: ${cmd}`);
           const data = new TextEncoder().encode(cmd + '\r');
           for (let i = 0; i < data.length; i += 20) {
             const chunk = data.slice(i, Math.min(i + 20, data.length));
-            try {
-              if (bleWrRef.current.properties.writeWithoutResponse) {
-                await bleWrRef.current.writeValueWithoutResponse(chunk);
-              } else {
-                await bleWrRef.current.writeValue(chunk);
-              }
-            } catch (writeErr) {
-              console.error('BLE write error:', writeErr);
-              finish('BLE_WRITE_ERROR');
-              return;
+            if (bleWrRef.current.properties.writeWithoutResponse) {
+              await bleWrRef.current.writeValueWithoutResponse(chunk);
+            } else {
+              await bleWrRef.current.writeValue(chunk);
             }
             if (i + 20 < data.length) await new Promise(r => setTimeout(r, 15));
           }
         } else if (cmRef.current === 'serial' && serialWrRef.current) {
-          console.log(`Sending Serial command: ${cmd}`);
           await serialWrRef.current.write(bytes);
         } else if (cmRef.current === 'wifi' && wsRef.current && wsRef.current.readyState === 1) {
-          console.log(`Sending WiFi command: ${cmd}`);
           wsRef.current.send(cmd + '\r');
         } else {
-          console.error('Not connected or invalid connection method');
           finish('NOT CONNECTED');
         }
       } catch (e) {
-        console.error('Send command error:', e);
         finish('ERROR: ' + e.message);
       }
     });
@@ -2736,33 +1381,11 @@ function App() {
     // The '>' prompt is the definitive end of any ELM327 response
     if (buf.includes('>')) {
       let clean = buf.replace(/SEARCHING\.*/gi, '').replace(/[\r\n>]/g, ' ').replace(/\s+/g, ' ').trim();
-      
-      // Log the response for debugging
-      if (clean && clean.length > 0) {
-        // Only log substantial responses to avoid noise
-        if (clean.length > 5 || clean.includes('41') || clean.includes('62') || clean.includes('7E')) {
-          console.log('ELM Response:', clean);
-        }
-      }
-      
       if (resolveFn.current) {
         resolveFn.current(clean);
         resolveFn.current = null;
-      } else {
-        // Received data without pending command - might be async notification
-        console.log('Unsolicited data:', clean);
       }
       resBuf.current = '';
-    }
-    
-    // Timeout protection - if buffer gets too large without '>', clear it
-    if (buf.length > 1000) {
-      console.warn('Buffer overflow, clearing');
-      resBuf.current = '';
-      if (resolveFn.current) {
-        resolveFn.current('BUFFER_OVERFLOW');
-        resolveFn.current = null;
-      }
     }
   }, []);
 
@@ -3091,149 +1714,6 @@ function App() {
     setCI(connected ? 'Connected ✓' : 'Connected (no vehicle data)');
     addLog('Init complete!', 'success');
     setTab('dash');
-  }, [send, addLog]);
-
-  // ─── READ ODOMETER FROM ECU ───
-  const readOdometerFromECU = useCallback(async (ecu) => {
-    const odometerCommands = [
-      '22 02 00',  // Standard UDS odometer
-      '22 F0 10',  // Alternative odometer
-      '22 F0 11',  // Odometer 2
-      '22 F0 12',  // Odometer 3
-      '22 F0 20',  // Distance total
-      '22 F0 21',  // Distance trip
-      '22 F0 22',  // Distance service
-      '22 F1 D0',  // Vehicle mileage
-      '21 01',     // Alternative read
-      '21 02',     // Alternative read 2
-      '2E 21 01',  // Write/read alternative
-      '2F 03 01',  // Alternative read/write
-    ];
-
-    addLog(`Trying to read odometer from ${ecu.n}...`);
-    
-    for (const cmd of odometerCommands) {
-      try {
-        const response = await send(cmd, 3000);
-        if (response && !response.includes('NO DATA') && !response.includes('ERROR') && !response.includes('7F')) {
-          const clean = response.replace(/\s/g, '').toUpperCase();
-          
-          // Try to extract odometer value from various response formats
-          let km = null;
-          
-          // Format: 62 XX XX [data]
-          if (clean.includes('62')) {
-            const dataStart = clean.indexOf('62') + 6;
-            const dataHex = clean.substring(dataStart);
-            
-            // Try different parsing methods
-            for (let len of [8, 6, 4, 2]) {
-              if (dataHex.length >= len) {
-                const hexPart = dataHex.substring(0, len);
-                let value = 0;
-                for (let i = 0; i < hexPart.length; i += 2) {
-                  value = value << 8 | parseInt(hexPart.substring(i, i + 2), 16);
-                }
-                
-                // Check if value is reasonable for odometer (0-2,000,000 km)
-                if (value > 0 && value < 2000000) {
-                  km = value;
-                  addLog(`Odometer found in ${ecu.n}: ${km} km (cmd: ${cmd})`, 'success');
-                  return km;
-                }
-              }
-            }
-          }
-          
-          // Format: 61 01 [data] (alternative format)
-          if (clean.includes('61')) {
-            const dataStart = clean.indexOf('61') + 4;
-            const dataHex = clean.substring(dataStart);
-            
-            for (let len of [8, 6, 4, 2]) {
-              if (dataHex.length >= len) {
-                const hexPart = dataHex.substring(0, len);
-                let value = 0;
-                for (let i = 0; i < hexPart.length; i += 2) {
-                  value = value << 8 | parseInt(hexPart.substring(i, i + 2), 16);
-                }
-                
-                if (value > 0 && value < 2000000) {
-                  km = value;
-                  addLog(`Odometer found in ${ecu.n}: ${km} km (cmd: ${cmd})`, 'success');
-                  return km;
-                }
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.warn(`Error reading odometer with command ${cmd}:`, e);
-      }
-    }
-    
-    addLog(`No odometer found in ${ecu.n}`, 'warning');
-    return null;
-  }, [send, addLog]);
-
-  // ─── AUTO SCAN ADDRESSES ───
-  const autoScanAddresses = useCallback(async () => {
-    addLog('Starting automatic address scan...');
-    const found = [];
-    
-    // Common address ranges to scan
-    const addressRanges = [
-      { start: 0x700, end: 0x7FF },  // Standard ECU range
-      { start: 0x600, end: 0x6FF },  // Alternative range
-      { start: 0x100, end: 0x1FF },  // Extended range
-    ];
-    
-    for (const range of addressRanges) {
-      addLog(`Scanning range ${range.start.toString(16).toUpperCase()}-${range.end.toString(16).toUpperCase()}...`);
-      
-      for (let addr = range.start; addr <= range.end; addr++) {
-        const addrHex = addr.toString(16).toUpperCase().padStart(3, '0');
-        const respHex = (addr + 8).toString(16).toUpperCase().padStart(3, '0');
-        
-        try {
-          await send('AT SH ' + addrHex, 500);
-          await send('AT CRA ' + respHex, 500);
-          
-          const r = await send('3E 00', 1000);
-          const clean = (r || '').replace(/\s/g, '').toUpperCase();
-          
-          if (clean.length > 4 && 
-              (clean.includes('7E') || clean.includes(respHex.substring(0,2)) || 
-               (clean.startsWith('7F') && clean.length > 6) ||
-               (clean.startsWith('62') || clean.startsWith('50') || clean.startsWith('60'))) &&
-              !clean.includes('NODATA') && !clean.includes('ERROR') && !clean.includes('TIMEOUT')) {
-            
-            found.push({
-              a: addrHex,
-              r: respHex,
-              n: 'ECU ' + addrHex,
-              h: 'מחשב ' + addrHex,
-              ic: '🔧',
-              ok: true,
-              raw: r,
-              autoFound: true
-            });
-            
-            addLog(`Auto-found ECU at ${addrHex}`, 'success');
-          }
-        } catch (e) {
-          // Continue to next address
-        }
-      }
-    }
-    
-    // Reset to default address
-    await send('ATH0', 1000);
-    await send('AT SH 7DF', 1000);
-    await send('AT CRA', 1000);
-    
-    addLog(`Auto-scan found ${found.length} additional ECUs`, 'success');
-    return found;
   }, [send, addLog]);
 
   // ─── CONNECT MAIN ───
@@ -3653,30 +2133,11 @@ function App() {
       setEP(`${ecu.ic} ${ecu.h || ecu.n} (${i + 1}/${ECUS.length})`);
       await send('AT SH ' + ecu.a, 1000);
       await send('AT CRA ' + ecu.r, 1000);
-      
-      // Try multiple commands to increase detection chance
-      let r = await send('3E 00', 3000); // Tester present
-      
-      // If no response, try alternative commands
-      if (!r || r.includes('NO DATA') || r.includes('ERROR') || r.includes('TIMEOUT')) {
-        addLog(`Trying alternative command for ${ecu.n}...`);
-        r = await send('10 01', 2000); // Diagnostic session control
-      }
-      
+      const r = await send('3E 00', 2500);
       const isDemo = cmRef.current === 'demo';
-      // Improved response validation - more lenient but still accurate
+      // Valid response MUST contain '7E' (positive tester-present) or valid hex starting with response ID
       const clean = (r || '').replace(/\s/g, '').toUpperCase();
-      const validResp = clean.length > 4 && 
-                        (clean.includes('7E') || clean.includes(ecu.r.substring(0,2)) || 
-                         (clean.startsWith('7F') && clean.length > 6) ||
-                         (clean.startsWith('62') || clean.startsWith('50') || clean.startsWith('60'))) &&
-                        !clean.includes('NODATA') && 
-                        !clean.includes('ERROR') && 
-                        !clean.includes('TIMEOUT') && 
-                        !clean.includes('STOPPED') && 
-                        !clean.includes('UNABLE') && 
-                        !clean.includes('?');
-      
+      const validResp = clean.includes('7E00') || clean.includes('7E') && /[0-9A-F]{4,}/.test(clean) && !clean.includes('NODATA') && !clean.includes('ERROR') && !clean.includes('TIMEOUT') && !clean.includes('STOPPED') && !clean.includes('UNABLE') && !clean.includes('?');
       const ok = isDemo ? DEMO_ACTIVE.has(ecu.a) : validResp;
       found.push({
         ...ecu,
@@ -3684,16 +2145,7 @@ function App() {
         raw: r || ''
       });
       if (ok) addLog('Found: ' + ecu.n + ' → ' + r, 'success');
-      else addLog(`No response from ${ecu.n}`, 'warning');
     }
-    
-    // If no ECUs found, try auto-scan
-    if (found.filter(e => e.ok).length === 0) {
-      addLog('No standard ECUs found, trying auto-scan...', 'warning');
-      const autoFound = await autoScanAddresses();
-      found.push(...autoFound);
-    }
-    
     // Reset headers and address
     await send('ATH0', 1000);
     await send('AT SH 7DF', 1000);
@@ -3702,62 +2154,42 @@ function App() {
     setEP('');
     setES(false);
     addLog(`Scan done! ${found.filter(e => e.ok).length} active`, 'success');
-  }, [send, addLog, autoScanAddresses]);
+  }, [send, addLog]);
   const readECUDet = useCallback(async ecu => {
     setSE(ecu);
     setLo(true);
-    addLog(`Reading details from ${ecu.n}...`);
     await send('AT SH ' + ecu.a, 1000);
     await send('AT CRA ' + ecu.r, 1000);
-    
-    // Try to enter diagnostic session with extended timeout
-    const sessionResp = await send('10 03', 3000);
-    if (!sessionResp || sessionResp.includes('ERROR')) {
-      addLog('Extended diagnostic session failed, trying default session', 'warning');
-      await send('10 01', 2000);
-    }
-    
+    await send('10 03', 1500);
     const det = {
       dtcs: []
     };
-    
-    // First, try to read odometer using the specialized function
-    const odometerKm = await readOdometerFromECU(ecu);
-    if (odometerKm !== null) {
-      det['odometer'] = odometerKm + ' km';
-      addLog(`✅ Odometer in ${ecu.n}: ${odometerKm} km`, 'success');
-    }
-    
-    // Then read other DIDs (limit to critical ones to save time)
-    const criticalDIDs = UDS_DIDS.filter(did => did.crit);
-    for (const did of criticalDIDs) {
-      if (did.d === '0200' || did.d === 'F010') continue; // Skip odometer, already read
-      
+    for (const did of UDS_DIDS) {
       const cmd = '22 ' + did.d.substring(0, 2) + ' ' + did.d.substring(2);
-      const r = await send(cmd, 3000);
-      
-      if (r && !r.includes('NO DATA') && !r.includes('ERROR') && !r.includes('7F 22')) {
+      const r = await send(cmd, 2000);
+      if (r && !r.includes('NO DATA') && !r.includes('ERROR') && !r.includes('7F')) {
         const cl = r.replace(/\s/g, '');
         const px = '62' + did.d.toUpperCase();
         const idx = cl.indexOf(px);
         if (idx >= 0) {
           const dh = cl.substring(idx + px.length);
-          let asc = '';
-          for (let j = 0; j < dh.length; j += 2) {
-            const ch = parseInt(dh.substring(j, j + 2), 16);
-            if (ch >= 32 && ch <= 126) asc += String.fromCharCode(ch);
+          if (did.d === '0200' || did.d === 'F010') {
+            let km = 0;
+            for (let j = 0; j < dh.length && j < 8; j += 2) km = km << 8 | parseInt(dh.substring(j, j + 2), 16);
+            det[did.d] = km > 0 && km < 1000000 ? km + ' km' : dh;
+          } else {
+            let asc = '';
+            for (let j = 0; j < dh.length; j += 2) {
+              const ch = parseInt(dh.substring(j, j + 2), 16);
+              if (ch >= 32 && ch <= 126) asc += String.fromCharCode(ch);
+            }
+            det[did.d] = asc.length >= 2 ? asc : dh;
           }
-          det[did.d] = asc.length >= 2 ? asc : dh;
-          if (asc.length >= 2) addLog(`Data from ${did.d}: ${asc}`);
         }
       }
     }
-    
-    // Read DTCs with multiple attempts
-    addLog('Reading DTCs...');
-    const dtcR = await send('19 02 FF', 4000);
-    
-    if (dtcR && !dtcR.includes('NO DATA') && !dtcR.includes('7F 19')) {
+    const dtcR = await send('19 02 FF', 3000);
+    if (dtcR && !dtcR.includes('NO DATA') && !dtcR.includes('7F')) {
       const cl = dtcR.replace(/\s/g, '');
       const di = cl.indexOf('5902');
       if (di >= 0) {
@@ -3766,25 +2198,18 @@ function App() {
           const ch = dd.substring(j, j + 4);
           if (ch !== '0000') {
             const dtc = parseDTC(ch);
-            if (dtc) {
-              det.dtcs.push(dtc);
-              addLog(`Found DTC: ${dtc.code} - ${dtc.desc}`, 'warning');
-            }
+            if (dtc) det.dtcs.push(dtc);
           }
         }
       }
-    } else {
-      addLog('No DTCs found or read failed', 'info');
     }
-    
     setED(p => ({
       ...p,
       [ecu.a]: det
     }));
     await send('AT SH 7DF', 1000);
     setLo(false);
-    addLog(`Finished reading ${ecu.n}`, 'success');
-  }, [send, readOdometerFromECU]);
+  }, [send]);
   const fullReport = useCallback(async () => {
     setES(true);
     const active = ecuList.filter(e => e.ok);
@@ -3794,8 +2219,7 @@ function App() {
       await readECUDet(active[i]);
       const d = ecuDet[active[i].a];
       if (d) {
-        // Try new odometer field first, then fall back to old fields
-        const km = d['odometer'] || d['0200'] || d['F010'];
+        const km = d['0200'] || d['F010'];
         if (km) kms.push({
           name: active[i].h || active[i].n,
           km: parseInt(km) || km
@@ -3805,71 +2229,25 @@ function App() {
     setKR(kms);
     setEP('');
     setES(false);
-    
-    // Save scan history after full report
-    saveScanHistory({
-      type: 'manual',
-      timestamp: new Date().toISOString()
-    });
-    
-    // Check for smart alerts
-    checkSmartAlerts();
-  }, [ecuList, readECUDet, ecuDet, saveScanHistory, checkSmartAlerts]);
+  }, [ecuList, readECUDet, ecuDet]);
 
   // ─── VEHICLE INFO ───
   const readVeh = useCallback(async () => {
     setLo(true);
-    addLog('Reading vehicle info...');
-    
-    // Read VIN with multiple attempts
-    let vinR = await send('09 02', 5000);
-    if (!vinR || vinR.includes('NO DATA') || vinR.includes('ERROR')) {
-      addLog('First VIN read failed, trying alternative...', 'warning');
-      vinR = await send('09 02', 5000); // Retry
-    }
-    
-    if (vinR && !vinR.includes('NO DATA') && !vinR.includes('ERROR')) {
+    const vinR = await send('09 02', 5000);
+    if (vinR && !vinR.includes('NO DATA')) {
       const hx = vinR.replace(/\s/g, '').replace(/.*4902\d*/, '');
       let vin = '';
       for (let i = 0; i < hx.length; i += 2) {
         const c = parseInt(hx.substring(i, i + 2), 16);
         if (c >= 32 && c <= 126) vin += String.fromCharCode(c);
       }
-      if (vin.length >= 10) {
-        setVI(p => ({
-          ...p,
-          vin
-        }));
-        addLog('VIN: ' + vin, 'success');
-        
-        // Decode VIN and get additional info
-        const decodedVIN = decodeVIN(vin);
-        if (decodedVIN) {
-          addLog(`VIN decoded: ${decodedVIN.country}, ${decodedVIN.year}`, 'info');
-          setVI(p => ({
-            ...p,
-            country: decodedVIN.country,
-            year: decodedVIN.year
-          }));
-        }
-        
-        // Try to get additional vehicle info from API
-        const vehicleInfo = await getVehicleInfoFromVIN(vin);
-        if (vehicleInfo) {
-          setVI(p => ({
-            ...p,
-            ...vehicleInfo
-          }));
-        }
-      } else {
-        addLog('VIN too short or invalid', 'warning');
-      }
-    } else {
-      addLog('Could not read VIN', 'error');
+      if (vin.length >= 10) setVI(p => ({
+        ...p,
+        vin
+      }));
     }
-    
-    // Read OBD standard
-    const obdR = await send('01 1C', 3000);
+    const obdR = await send('01 1C', 2000);
     if (obdR && obdR.includes('41 1C')) {
       const std = parseInt(obdR.replace(/\s/g, '').replace(/.*411C/, '').substring(0, 2), 16);
       const stds = {
@@ -3883,14 +2261,9 @@ function App() {
         ...p,
         obdStd: stds[std] || 'Std ' + std
       }));
-      addLog('OBD Standard: ' + (stds[std] || 'Std ' + std), 'success');
-    } else {
-      addLog('Could not read OBD standard', 'warning');
     }
-    
     setLo(false);
-    addLog('Vehicle info read complete', 'success');
-  }, [send, decodeVIN, getVehicleInfoFromVIN, addLog]);
+  }, [send]);
   const [showReport, setSR2] = useState(false);
 
   // ─── PRINT — show in-app report ───
