@@ -2627,7 +2627,7 @@ function App() {
       color: '#64748b'
     }
   }, t('copy')), /*#__PURE__*/React.createElement("a", {
-    href: "https://barakaflalo.github.io/appnest",
+    href: "https://appnest-store.pages.dev",
     target: "_blank",
     rel: "noreferrer",
     style: {
