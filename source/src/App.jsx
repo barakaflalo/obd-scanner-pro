@@ -8,7 +8,7 @@ import { askAI, AI_PROVIDERS, cleanKey } from "./ai.js";
 import { DIN, WIRES, FUSES, PROTOCOLS, SECTIONS, E12, FUSE_STEPS } from "./techref.js";
 import { CODES_DB, CAR_MODELS, CAR_MAKES, SYMPTOMS, SENSOR_REF, WIRE_TYPES, WIRE_COLORS, CONVERSIONS, BATTERY_TABLE, DICT, makeFromHe, relatedCodes, circuitFor } from "./data.js";
 import { CODES_EN, SAFE_EN, SYMPTOMS_EN, SENSORS_EN, WIRE_TYPES_EN, WIRE_COLORS_EN, CONV_CAT_EN, BATTERY_EN } from "./data_en.js";
-import { APP_VERSION, ABOUT, ctx, L, uid, esc, loadData, saveData, deleteData, resizeImage, openExt, toast, doPrint, shareText, shareWhatsApp, elmLines, protoName, isCanProto, parsePID, parseDTCs, parseVIN, decodeReadiness, parseSupported, parseFF, LIVE_PIDS, LIVE_GROUPS, pidsOfGroup, parsePIDAll, mergeReadiness, parseMode06, mode06Supported, makeDemoAdapter, fmtPlate } from "./lib.js";
+import { APP_VERSION, ABOUT, ctx, L, uid, esc, loadData, saveData, deleteData, resizeImage, openExt, toast, doPrint, shareText, shareWhatsApp, elmLines, protoName, isCanProto, parsePID, parseDTCs, parseVIN, decodeReadiness, parseSupported, parseFF, LIVE_PIDS, LIVE_GROUPS, pidsOfGroup, parsePIDAll, mergeReadiness, parseMode06, mode06Supported, makeDemoAdapter, fmtPlate, ECUS, ecusWide, UDS_DIDS, parseUdsDid, parseUdsDTCs, nrcText } from "./lib.js";
 import { S, THEMES, THEME_ORDER, applyTheme } from "./theme.js";
 import { T } from "./i18n.js";
 
@@ -56,6 +56,25 @@ function LiveChart({ data, big }){
     {big && [0.25,0.5,0.75].map(f=> <line key={f} x1="0" x2={W} y1={H*f} y2={H*f} stroke={S.bdr} strokeWidth="0.6"/>)}
     <polyline points={pts} fill="none" stroke={S.acc} strokeWidth={big?2:1.4} strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
   </svg>;
+}
+// round gauge for the dashboard
+function Gauge({ value, max=100, label="", unit="", warn, size=112 }){
+  const v = parseFloat(value); const ok = isFinite(v); const pct = ok ? Math.min(Math.max(v/max,0),1) : 0;
+  const sa = -225, ea = 45, rng = ea-sa, ang = sa+pct*rng, r = size/2-10, cx = size/2, cy = size/2; const bad = warn && ok && v >= warn; const col = bad ? S.red : S.acc;
+  const arc = (s1,e1) => { const a = (s1-90)*Math.PI/180, b = (e1-90)*Math.PI/180; return `M ${cx+r*Math.cos(a)} ${cy+r*Math.sin(a)} A ${r} ${r} 0 ${(e1-s1)>180?1:0} 1 ${cx+r*Math.cos(b)} ${cy+r*Math.sin(b)}`; };
+  const nd = (ang-90)*Math.PI/180;
+  return <div style={{ textAlign:"center", flex:1, minWidth:0 }}>
+    <svg viewBox={`0 0 ${size} ${size}`} style={{ width:"100%", maxWidth:size+"px" }} aria-label={`${label} ${ok?v:""} ${unit}`}>
+      <path d={arc(sa,ea)} fill="none" stroke={S.bdr} strokeWidth="6" strokeLinecap="round"/>
+      {warn && <path d={arc(sa+(warn/max)*rng,ea)} fill="none" stroke={`${S.red}55`} strokeWidth="6" strokeLinecap="round"/>}
+      {ok && pct>0.004 && <path d={arc(sa,ang)} fill="none" stroke={col} strokeWidth="6" strokeLinecap="round"/>}
+      <line x1={cx} y1={cy} x2={cx+(r-9)*Math.cos(nd)} y2={cy+(r-9)*Math.sin(nd)} stroke={col} strokeWidth="2.2" strokeLinecap="round"/>
+      <circle cx={cx} cy={cy} r="4" fill={col}/>
+      <text x={cx} y={cy+22} textAnchor="middle" fill={S.text} fontSize="17" fontWeight="800" fontFamily="monospace">{ok ? Math.round(v) : "—"}</text>
+      <text x={cx} y={cy+35} textAnchor="middle" fill={S.muted} fontSize="9">{unit}</text>
+    </svg>
+    <div style={{ fontSize:"11px", color:S.sub, marginTop:"-6px" }}>{label}</div>
+  </div>;
 }
 // ═══ Small UI pieces ═══
 function Card({ children, title, actions, style }){
@@ -407,12 +426,15 @@ function AssistantPanel({ onClose, getCtx, messages, setMessages, aiCfg, setAiCf
 
 // ═══ MAIN APP ═══
 // ═══ "Check, summarize and explain": one screen that turns the scan into a plan ═══
-function ScanReport({ onClose, getCtx, aiCfg, odo, proto, batt, onOpenAssist, onOpenSettings, backArrow }){
+function ScanReport({ onClose, getCtx, aiCfg, odo, proto, batt, ecus, ecuDet, onOpenAssist, onOpenSettings, backArrow }){
+  const mods = (ecus||[]).filter(e=>e.ok).map(e=>({ ...e, d:(ecuDet||{})[e.a] })); const modName = m => (m.d && m.d.dids.F197) || (en()?m.n:m.h);
+  const modCodes = mods.flatMap(m=> m.d && m.d.dtcs ? m.d.dtcs.map(x=>({ ...x, mod:modName(m), a:m.a })) : []);
   const c0 = getCtx(); const scan = c0.scan || {};
   const rep = scanReport(c0);
   const codes = scan.codes || { stored:[], pending:[], permanent:[] };
   const groups = [["stored",T("שמורים (פעילים)"),S.red],["pending",T("ממתינים"),S.warn],["permanent",T("קבועים"),S.blue]];
   const all = [...new Set([...codes.stored, ...codes.pending, ...codes.permanent])];
+  const vinMods = mods.filter(m=>m.d && m.d.dids.F190 && scan.vin && m.d.dids.F190.length>=11 && m.d.dids.F190!==scan.vin);
   const ready = scan.ready; const mis = Array.isArray(scan.mis) ? scan.mis.filter(m=>(m.cur||0)>0||(m.avg||0)>0) : [];
   const v = c0.vehicle; const carName = v ? [v.makeEn||v.maker||v.makeHe, v.model, v.year].filter(Boolean).join(" ") : "";
   const [ai,setAi] = useState(""); const [aiBusy,setAiBusy] = useState(false); const [aiErr,setAiErr] = useState("");
@@ -420,15 +442,18 @@ function ScanReport({ onClose, getCtx, aiCfg, odo, proto, batt, onOpenAssist, on
   const odoVals = (odo||[]).map(o=>o.km); const odoSpread = odoVals.length>1 ? Math.max(...odoVals)-Math.min(...odoVals) : 0;
   // overall verdict
   const critical = all.some(c=>{ const i = codeInfo(c); return i && (i.sev==="קריטית" || !i.safeOk); });
-  const verdict = !all.length && !rep.findings.length && !mis.length ? { c:S.green, t:"✅ "+T("לא נמצאו תקלות במה שנסרק") }
-    : critical ? { c:S.red, t:"🔴 "+T("נמצאו תקלות שדורשות טיפול לפני נסיעה ממושכת") }
+  const critical2 = critical || modCodes.some(x=>/^[BC]00/.test(x.code) && x.active) || vinMods.length>0;
+  const verdict = !all.length && !modCodes.length && !rep.findings.length && !mis.length && !vinMods.length ? { c:S.green, t:"✅ "+T("לא נמצאו תקלות במה שנסרק") }
+    : critical2 ? { c:S.red, t:"🔴 "+T("נמצאו תקלות שדורשות טיפול לפני נסיעה ממושכת") }
     : { c:S.warn, t:"🟠 "+T("נמצאו ממצאים שכדאי לבדוק") };
   async function deepen(){
     setAiBusy(true); setAiErr("");
     try{
       const ctx = getCtx(); const local = answer(en()?"analyze the scan":"נתח את הסריקה", ctx);
       const q = en() ? "Review this scan as an experienced mechanic: summarize the car's condition, explain each fault and how the codes relate, list the most likely causes in order, and give a step-by-step repair plan starting with the cheapest checks. Mention whether it is safe to drive." : "סקור את הסריקה כמו מכונאי מנוסה: סכם את מצב הרכב, הסבר כל תקלה ואיך הקודים קשורים זה לזה, פרט את הסיבות הסבירות לפי סדר, ותן תוכנית תיקון שלב אחרי שלב שמתחילה בבדיקות הזולות. ציין אם בטוח לנסוע.";
-      const extra = (odo&&odo.length ? "\nOdometer (PID A6): "+odo.map(o=>`${o.name} ${o.km} km`).join(", ") : "");
+      const extra = (odo&&odo.length ? "\nOdometer (PID A6): "+odo.map(o=>`${o.name} ${o.km} km`).join(", ") : "")
+        + (mods.length ? "\nOther modules found: "+mods.map(m=>`${modName(m)} (${m.a})`+(m.d&&m.d.dtcs?": "+(m.d.dtcs.map(x=>x.code+(x.active?" active":" stored")).join(",")||"no codes"):"")).join("; ") : "")
+        + (vinMods.length ? "\nVIN mismatch in modules: "+vinMods.map(m=>modName(m)+"="+m.d.dids.F190).join(", ") : "");
       const txt = await askAI({ provider:aiCfg.provider, key:aiCfg.key, model:aiCfg.model, question:q, appKnowledge: local && local.ctxText || "", carContext: aiContext(ctx)+extra, lang:ctx.lang });
       setAi(txt || T("לא התקבלה תשובה"));
     }catch(e){ setAiErr(String(e && e.message || e)); }
@@ -442,6 +467,7 @@ function ScanReport({ onClose, getCtx, aiCfg, odo, proto, batt, onOpenAssist, on
     for(const [k,lab] of groups){ if(codes[k].length) L2.push(`${lab}: `+codes[k].map(c=>`${c} ${codeTitle(c)}`).join(" · ")); }
     if(rep.combo.length){ L2.push(""); L2.push(T("קשרים בין הקודים")+":"); rep.combo.forEach(x=>L2.push("• "+x)); }
     if(rep.findings.length){ L2.push(""); L2.push(T("ממצאים מהנתונים החיים")+":"); rep.findings.forEach(x=>L2.push("• "+x)); }
+    if(mods.length){ L2.push(""); L2.push(T("מחשבים שנמצאו")+": "+mods.map(modName).join(", ")); modCodes.forEach(x=>L2.push(`• ${x.mod}: ${x.code} ${codeTitle(x.code)}`)); vinMods.forEach(m=>L2.push("🚩 "+T("VIN שונה ב-{n}",{ n:modName(m) }))); }
     if(mis.length) L2.push(T("פספוסים")+": "+mis.map(m=>`#${m.cyl}=${m.cur||m.avg}`).join(", "));
     if(odo && odo.length) L2.push(T("ק\"מ ממחשבי הרכב")+": "+odo.map(o=>`${o.name} ${o.km.toLocaleString()} km`).join(" · "));
     if(ai){ L2.push(""); L2.push("🤖 AI:"); L2.push(ai.replace(/\*\*/g,"")); }
@@ -453,6 +479,7 @@ function ScanReport({ onClose, getCtx, aiCfg, odo, proto, batt, onOpenAssist, on
     let h = `<p><b>${esc(verdict.t.replace(/^\S+\s/,""))}</b></p>`;
     if(carName || scan.vin) h += `<p>${esc(carName)} ${scan.vin?"· VIN "+esc(scan.vin):""}</p>`;
     h += sec(T("קודי תקלה"), all.map(c=>{ const i = codeInfo(c); return `<div style="margin:6px 0;padding:6px;border:1px solid #ccc;border-radius:6px"><b>${esc(c)}</b> — ${esc(i?i.title:T("קוד לא מוכר במאגר"))}${i?`<br><small>${esc(T("חומרה"))}: ${esc(sevLabel(i.sev))} · ${esc(T("נסיעה"))}: ${esc(i.safe)}</small>`+(i.causes&&i.causes.length?`<br><small>${esc(T("סיבות"))}: ${esc(i.causes.slice(0,4).join(", "))}</small>`:""):""}</div>`; }).join(""));
+    if(mods.length) h += sec(T("כל מחשבי הרכב"), li(mods.map(m=>`${modName(m)} (${m.a})`+(m.d&&m.d.dtcs ? ": "+(m.d.dtcs.map(x=>x.code+" "+codeTitle(x.code)).join(", ")||T("אין קודים")) : "")+(vinMods.includes(m)?" — 🚩 "+T("VIN שונה"):""))));
     h += sec(T("קשרים בין הקודים"), li(rep.combo));
     h += sec(T("ממצאים מהנתונים החיים"), li(rep.findings));
     if(odo && odo.length) h += sec(T("ק\"מ ממחשבי הרכב"), li(odo.map(o=>`${o.name}: ${o.km.toLocaleString()} km`)));
@@ -476,7 +503,8 @@ function ScanReport({ onClose, getCtx, aiCfg, odo, proto, batt, onOpenAssist, on
           {carName && [<span key="a" style={{ color:S.muted }}>{T("רכב")}</span>, <span key="b">{carName}</span>]}
           {scan.vin && [<span key="c" style={{ color:S.muted }}>VIN</span>, <span key="d" style={{ fontFamily:"monospace", fontWeight:700 }}>{num(scan.vin)}</span>]}
           {ready && [<span key="e" style={{ color:S.muted }}>{T("נורית מנוע")}</span>, <span key="f" style={{ color:ready.mil?S.red:S.green, fontWeight:700 }}>{ready.mil?"🔴 "+T("דולקת"):"🟢 "+T("כבויה")}</span>]}
-          <span style={{ color:S.muted }}>{T("קודים")}</span><span style={{ fontWeight:700 }}>{num(all.length)}</span>
+          <span style={{ color:S.muted }}>{T("קודים")}</span><span style={{ fontWeight:700 }}>{num(all.length+modCodes.length)}</span>
+          {mods.length>0 && [<span key="m1" style={{ color:S.muted }}>{T("מחשבים שענו")}</span>, <span key="m2">{num(mods.length)}</span>]}
           {batt && [<span key="g" style={{ color:S.muted }}>{T("מצבר")}</span>, <span key="h">{num(batt+" V")}</span>]}
           {proto && [<span key="i" style={{ color:S.muted }}>{T("פרוטוקול")}</span>, <span key="j" style={{ color:S.sub }}>{proto}</span>]}
           {ready && [<span key="k" style={{ color:S.muted }}>{T("מוכנות")}</span>, <span key="l">{num(`${ready.monitors.filter(m=>m.done).length}/${ready.monitors.length}`)}</span>]}
@@ -503,6 +531,17 @@ function ScanReport({ onClose, getCtx, aiCfg, odo, proto, batt, onOpenAssist, on
             </div>
           </div>; })}
         </div>)}
+      </Card>}
+      {mods.length>0 && <Card title={"🧩 "+T("כל מחשבי הרכב")}>
+        {vinMods.map(m=> <p key={m.a} style={{ color:S.red, fontSize:"12px", fontWeight:700, margin:"0 0 6px" }}>🚩 {T("מספר השילדה ב-{n} שונה מזה של הרכב — ייתכן שהמחשב הוחלף.",{ n:modName(m) })}</p>)}
+        {mods.map(m=> <div key={m.a} style={{ display:"flex", gap:"8px", alignItems:"center", fontSize:"13px", padding:"5px 0", borderBottom:`1px solid ${S.bdr}` }}><span>{m.ic}</span><span style={{ flex:1 }}>{modName(m)}</span><span style={{ fontSize:"12px", color: !m.d ? S.muted : (m.d.dtcs && m.d.dtcs.length ? S.red : S.green), fontWeight:700 }}>{!m.d ? T("לא נקרא") : m.d.dtcs ? (m.d.dtcs.length ? T("{n} קודים",{ n:m.d.dtcs.length }) : "✅") : "—"}</span></div>)}
+        {modCodes.map(x=>{ const i = codeInfo(x.code); return <div key={x.a+x.code} style={{ border:`1px solid ${x.active?S.red:S.warn}`, borderRadius:"10px", padding:"9px", marginTop:"8px", background:S.inner }}>
+          <div style={{ display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap" }}><span style={{ color:x.active?S.red:S.warn, fontWeight:800, fontFamily:"monospace" }}>{x.code}</span><span style={{ flex:1, fontSize:"13px", fontWeight:700 }}>{i ? i.title : T("קוד יצרן — חפש בגוגל לפי הדגם")}</span>{i && <SevBadge level={i.sev}/>}</div>
+          <div style={{ fontSize:"12px", color:S.muted, margin:"4px 0" }}>{x.mod} · {x.active?T("פעיל"):T("שמור במחשב")}</div>
+          {i && i.causes && i.causes.length>0 && <div style={{ fontSize:"12.5px", color:S.sub }}><MiniMd text={i.causes.slice(0,4).map(c=>"• "+c).join("\n")}/></div>}
+          <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginTop:"6px" }}><YT q={`${x.code} ${carName} ${i?(CODES_DB[x.code]||{}).en||"":""} fix`} l={T("סרטוני תיקון")}/><GG q={`${x.code} ${carName} ${x.mod}`} l={T("חיפוש בגוגל")}/></div>
+        </div>; })}
+        {mods.some(m=>!m.d) && <p style={{ color:S.muted, fontSize:"11px", margin:"8px 0 0" }}>{T("כדי לראות קודים מכל המחשבים — לחץ \"קרא פרטים וקודים מכולם\" בכרטיס כל מחשבי הרכב.")}</p>}
       </Card>}
       {rep.combo.length>0 && <Card title={"🔗 "+T("קשרים בין הקודים")}><div style={{ fontSize:"13px", color:S.sub }}><MiniMd text={rep.combo.map(x=>"• "+x).join("\n")}/></div></Card>}
       <Card title={"📊 "+T("ממצאים מהנתונים החיים")}>
@@ -572,6 +611,9 @@ export default function App(){
   const liveHist = useRef({}); const [liveTick,setLiveTick] = useState(0); const [liveSel,setLiveSel] = useState(""); const recRef = useRef(false); const recRows = useRef([]); const [recOn,setRecOn] = useState(false);
   const [liveGroup,setLiveGroupS] = useState("basic"); const liveGroupRef = useRef("basic"); const setLiveGroup = g => { liveGroupRef.current = g; setLiveGroupS(g); setLiveSel(""); };
   const [scanMis,setScanMis] = useState(null);
+  const [ecuList,setEcuList] = useState(null); const [ecuDet,setEcuDet] = useState({}); const [ecuProg,setEcuProg] = useState(""); const [ecuOpen,setEcuOpen] = useState("");
+  const [dashView,setDashView] = useState(false); const perfRef = useRef({ armed:false, start:0, time:null }); const tripRef = useRef({ on:false, start:0, last:0, km:0, fuelL:0 });
+  const [serialBaud,setSerialBaud] = useState("38400"); const [supOpen,setSupOpen] = useState(false);
   const [scanOdo,setScanOdo] = useState(null); const [odoDash,setOdoDash] = useState(""); const [reportOpen,setReportOpen] = useState(false);
   // vehicle (plate lookup / VIN)
   const [vehicle,setVehicle] = useState(null); const [vehicles,setVehicles] = useState([]);
@@ -814,7 +856,7 @@ export default function App(){
     { name:"OBDLink", svc:"0000fef1-0000-1000-8000-00805f9b34fb", tx:"0000fef2-0000-1000-8000-00805f9b34fb", rx:"0000fef2-0000-1000-8000-00805f9b34fb" },
   ];
   const slog = m => setScanLog(p=>[...p.slice(-299), m]);
-  function resetScan(){ setScanMis(null); setScanOdo(null); liveHist.current = {}; setLiveSel(""); recRef.current=false; setRecOn(false); setScanCodes(null); setScanVin(""); setScanReady(null); setScanFF(null); setScanLive({}); scanSup.current=null; liveRef.current=false; setLiveOn(false); }
+  function resetScan(){ setEcuList(null); setEcuDet({}); setEcuProg(""); setEcuOpen(""); perfRef.current = { armed:false, start:0, time:null }; tripRef.current = { on:false, start:0, last:0, km:0, fuelL:0 }; setScanMis(null); setScanOdo(null); liveHist.current = {}; setLiveSel(""); recRef.current=false; setRecOn(false); setScanCodes(null); setScanVin(""); setScanReady(null); setScanFF(null); setScanLive({}); scanSup.current=null; liveRef.current=false; setLiveOn(false); }
   async function initElm(label){
     slog("⚙️ "+T("אתחול ELM327..."));
     const id = await scanSendCmd("ATZ",4000);
@@ -869,7 +911,7 @@ export default function App(){
     slog("🎮 "+T("מצב הדגמה — סימולציה של רכב, בלי מתאם אמיתי"));
     await initElm("DEMO");
   }
-  function scanDisconnect(){ liveRef.current=false; setLiveOn(false); try{ if(scanDev?.gatt?.connected) scanDev.gatt.disconnect(); }catch(e){} scanCh.current=null; setScanDev(null); setScanStatus("disconnected"); slog("🔌 "+T("מנותק")); }
+  function scanDisconnect(){ liveRef.current=false; setLiveOn(false); try{ if(scanDev?.gatt?.connected) scanDev.gatt.disconnect(); }catch(e){} try{ if(scanCh.current && scanCh.current.close) scanCh.current.close(); }catch(e){} scanCh.current=null; setScanDev(null); setScanStatus("disconnected"); slog("🔌 "+T("מנותק")); }
   // one command at a time; resolves at the ">" prompt or on timeout
   function scanSendCmd(cmd, timeout=5000){
     const run = () => new Promise(resolve=>{
@@ -880,6 +922,7 @@ export default function App(){
       const t = setTimeout(()=>finish(scanBuf.current), timeout);
       scanWaiter.current = finish;
       const bytes = new TextEncoder().encode(cmd+"\r"); const pr = ch.properties||{};
+      if(ch.serial){ ch.write(bytes).catch(()=>finish("")); return; }
       (async()=>{ try{ for(let i=0;i<bytes.length;i+=20){ const part=bytes.slice(i,i+20);
         if(pr.write&&ch.writeValueWithResponse) await ch.writeValueWithResponse(part);
         else if(pr.writeWithoutResponse&&ch.writeValueWithoutResponse) await ch.writeValueWithoutResponse(part);
@@ -942,7 +985,7 @@ export default function App(){
     // the voltage at the OBD socket, every pass (the value at connect time can be from cranking)
     if(scanCh.current && liveGroupRef.current==="basic"){ const rv = elmLines(await scanSendCmd("ATRV",1500)).find(l=>/\d/.test(l)); if(rv){ const bv = rv.replace(/[^\d.]/g,""); snap.batt = bv; setScanLive(prev=>({ ...prev, batt:bv })); } }
     // history for the graphs + optional recording
-    const H = liveHist.current; const t = Date.now();
+    const H = liveHist.current; const t = Date.now(); updateDrive(snap, t);
     for(const k in snap){ const n = parseFloat(snap[k]); if(!isFinite(n)) continue; (H[k] = H[k] || []).push(n); if(H[k].length > 120) H[k].shift(); }
     if(recRef.current){ recRows.current.push({ t, ...snap }); if(recRows.current.length > 5000) recRows.current.shift(); }
     setLiveTick(x=>x+1);
@@ -967,6 +1010,95 @@ export default function App(){
       slog(out.length ? "📏 "+out.map(o=>`${o.name}: ${o.km.toLocaleString()} km`).join(" · ") : "ℹ️ "+T("הרכב לא מוסר ק\"מ דרך OBD (PID A6) — נפוץ ברכבים שלפני 2019")+" · "+(elmLines(raw).join(" ").slice(0,80)||T("אין תשובה")));
     } finally { setScanBusy(""); }
   }
+
+  // ─── classic Bluetooth (Android Chrome 137+, paired adapter) / USB (computer) via Web Serial ───
+  async function scanConnectSerial(){
+    if(!navigator.serial){ slog("⚠️ "+T("הדפדפן לא תומך בחיבור Bluetooth קלאסי / USB. צריך Chrome 137 ומעלה באנדרואיד, או Chrome במחשב.")); return; }
+    let port = null;
+    try{
+      resetScan(); setScanStatus("searching"); slog("🔍 "+T("בחר את המתאם מהרשימה (Bluetooth קלאסי צריך להיות מצומד קודם בהגדרות הטלפון)"));
+      port = await navigator.serial.requestPort({ allowedBluetoothServiceClassIds:["00001101-0000-1000-8000-00805f9b34fb"] });
+      setScanStatus("connecting");
+      const info = (port.getInfo && port.getInfo()) || {}; const isUsb = !!info.usbVendorId;
+      await port.open({ baudRate: parseInt(serialBaud,10) || 38400 });
+      const writer = port.writable.getWriter(); const reader = port.readable.getReader(); const dec = new TextDecoder(); let alive = true;
+      (async()=>{ try{ while(alive){ const { value, done } = await reader.read(); if(done) break; if(value){ scanBuf.current += dec.decode(value); if(scanBuf.current.includes(">") && scanWaiter.current){ const w = scanWaiter.current; scanWaiter.current = null; w(scanBuf.current); } } } }catch(e){}
+        if(alive){ alive = false; scanCh.current = null; liveRef.current = false; setLiveOn(false); setScanStatus("disconnected"); slog("🔌 "+T("המתאם התנתק")); } })();
+      scanCh.current = { serial:true, write: b => writer.write(b), close: async()=>{ alive = false; try{ await reader.cancel(); }catch(e){} try{ reader.releaseLock(); }catch(e){} try{ writer.releaseLock(); }catch(e){} try{ await port.close(); }catch(e){} } };
+      slog("✅ "+(isUsb ? T("מחובר ב-USB ({b})",{ b:serialBaud }) : T("מחובר ב-Bluetooth קלאסי")));
+      await initElm(isUsb ? "USB" : "Bluetooth SPP");
+    }catch(err){
+      const m = String(err && err.message || err);
+      try{ if(port && port.readable === null) {} }catch(e){}
+      setScanStatus(/cancel|No port selected/i.test(m) ? "disconnected" : "error");
+      slog(/cancel|No port selected/i.test(m) ? "ℹ️ "+T("החיפוש בוטל") : "❌ "+m+(/open/i.test(m) ? " — "+T("ייתכן שהמתאם תפוס באפליקציה אחרת, או שמהירות ה-USB שגויה") : ""));
+    }
+  }
+  // ─── dashboard: 0–100, trip computer, alerts ───
+  function fuelLph(src){ const fr = parseFloat(src["5E"]); if(isFinite(fr)) return { v:fr, est:false }; const maf = parseFloat(src["10"]); if(isFinite(maf)) return { v:maf*3600/(14.7*745), est:true }; return null; }
+  function updateDrive(snap, t){
+    const v = parseFloat(snap["0D"]); if(!isFinite(v)) return;
+    const P = perfRef.current;
+    if(P.armed){ if(!P.start && v > 2) P.start = t; if(P.start && v >= 100){ P.time = ((t-P.start)/1000).toFixed(1); P.armed = false; slog("🏁 0–100: "+P.time+" s"); } else if(P.start && v <= 1 && t-P.start > 2000) P.start = 0; }
+    const R = tripRef.current;
+    if(R.on){ if(R.last){ const dt = (t-R.last)/3600000; if(dt < 0.01){ R.km += v*dt; const f = fuelLph(snap); if(f) R.fuelL += f.v*dt; } } R.last = t; }
+  }
+  function liveAlerts(lv){
+    const a = []; const n = k => parseFloat(lv[k]); const volt = isFinite(n("batt")) ? n("batt") : n("42"); const rpm = n("0C");
+    if(n("05") > 105) a.push({ c:S.red, m:"🌡️ "+T("טמפרטורת מנוע מעל 105°C") });
+    if(isFinite(volt) && volt < 11.8) a.push({ c:S.red, m:"🔋 "+T("מתח מתחת ל-11.8V") });
+    if(isFinite(volt) && volt > 15) a.push({ c:S.red, m:"🔋 "+T("מתח מעל 15V — טעינת יתר") });
+    if(rpm > 400 && isFinite(volt) && volt < 13) a.push({ c:S.warn, m:"⚡ "+T("מנוע עובד ומתח מתחת ל-13V — בדוק טעינה") });
+    if(rpm > 6500) a.push({ c:S.warn, m:"⏱️ "+T("סל\"ד מעל 6500") });
+    if(Math.abs(n("07")) > 25 || Math.abs(n("09")) > 25) a.push({ c:S.warn, m:"📊 "+T("תיקון דלק ארוך טווח מעל ±25%") });
+    if(n("5C") > 120) a.push({ c:S.red, m:"🛢️ "+T("טמפרטורת שמן מעל 120°C") });
+    return a;
+  }
+  // ─── the car's other computers (ABS, airbags, body...) — CAN 11-bit only ───
+  const can11 = () => { const p = String(scanProto.current||"").toUpperCase(); return p==="6" || p==="8" || (scanCh.current && scanCh.current.demo); };
+  async function ecuReset(){ await scanSendCmd("ATH0",1500); await scanSendCmd("ATSH7DF",1500); await scanSendCmd("ATCRA",1500); }
+  async function ecuScan(wide){
+    if(!scanCh.current) return;
+    if(!can11()){ slog("ℹ️ "+T("סריקת שאר המחשבים עובדת כרגע רק ברכבי CAN עם כתובות 11 ביט (רוב הרכבים מ-2008 ואילך). כאן הפרוטוקול הוא {p}.",{ p:protoName(scanProto.current) })); setEcuList(l=>l||[]); return; }
+    const list = wide ? ecusWide() : ECUS; setScanBusy("ecu"); const found = [];
+    slog("🧩 "+T("סורק {n} כתובות מחשבים...",{ n:list.length }));
+    try{
+      await scanSendCmd("ATH1",1500);
+      for(let i=0;i<list.length;i++){
+        if(!scanCh.current) break; const e = list[i]; setEcuProg(`${e.ic} ${en()?e.n:e.h} (${i+1}/${list.length})`);
+        await scanSendCmd("ATSH"+e.a,1500); await scanSendCmd("ATCRA"+e.r,1500);
+        const r = await scanSendCmd("3E00",1500);
+        const lines = elmLines(r).map(l=>l.replace(/\s/g,"").toUpperCase());
+        const ok = lines.some(l=>l.startsWith(e.r) && /^[0-9A-F]{5,}$/.test(l));
+        found.push({ ...e, ok, raw:lines.join(" ") });
+        if(ok) slog("✅ "+(en()?e.n:e.h)+" ("+e.a+") → "+lines.join(" "));
+      }
+    } finally {
+      await ecuReset(); setEcuProg(""); setScanBusy("");
+      setEcuList(prev=>{ const m = new Map((prev||[]).map(x=>[x.a,x])); for(const f of found) if(f.ok || !m.has(f.a) || !wide) m.set(f.a,f); return [...m.values()].sort((a,b)=>(b.ok-a.ok) || a.a.localeCompare(b.a)); });
+      slog("🧩 "+T("נמצאו {n} מחשבים שעונים",{ n:found.filter(f=>f.ok).length }));
+    }
+  }
+  async function ecuReadOne(e){
+    await scanSendCmd("ATSH"+e.a,1500); await scanSendCmd("ATCRA"+e.r,1500);
+    const det = { dids:{}, dtcs:null, note:"" };
+    for(const d of UDS_DIDS){ if(!scanCh.current) break; const v = parseUdsDid(await scanSendCmd("22"+d.d,2500), d.d); if(v) det.dids[d.d] = (d.txt && v.text.length >= 2) ? v.text : v.hex; }
+    const raw = await scanSendCmd("1902FF",3500); det.dtcs = parseUdsDTCs(raw); if(det.dtcs === null) det.note = nrcText(raw) || (elmLines(raw).join(" ") || T("אין תשובה"));
+    setEcuDet(p=>({ ...p, [e.a]:det }));
+    slog("📄 "+(en()?e.n:e.h)+": "+(Object.keys(det.dids).length ? Object.entries(det.dids).map(([k,v])=>k+"="+v).join(", ") : T("לא החזיר פרטים"))+(det.dtcs ? " · "+T("{n} קודים",{ n:det.dtcs.length }) : ""));
+    return det;
+  }
+  async function ecuReadAll(only){
+    const list = (only ? [only] : (ecuList||[]).filter(e=>e.ok)); if(!list.length || !scanCh.current) return;
+    setScanBusy("ecu");
+    try{ for(let i=0;i<list.length;i++){ if(!scanCh.current) break; setEcuProg(`${list[i].ic} ${en()?list[i].n:list[i].h} (${i+1}/${list.length})`); await ecuReadOne(list[i]); } }
+    finally{ await ecuReset(); setEcuProg(""); setScanBusy(""); }
+  }
+  async function ecuClear(e){
+    askConfirm({ text:T("למחוק את הקודים של {n}? מוחקים רק אחרי שהתקלה תוקנה.",{ n:en()?e.n:e.h }), ok:T("מחק"), danger:true, onOk: async()=>{
+      setScanBusy("ecu"); try{ await scanSendCmd("ATSH"+e.a,1500); await scanSendCmd("ATCRA"+e.r,1500); const r = elmHexSafe(await scanSendCmd("14FFFFFF",5000)); slog(r.includes("54") ? "🗑️ "+T("הקודים נמחקו") : "⚠️ "+T("המחשב לא אישר מחיקה")+" "+r); await ecuReadOne(e); } finally{ await ecuReset(); setScanBusy(""); } } });
+  }
+  const elmHexSafe = raw => elmLines(raw).join("").replace(/\s/g,"").toUpperCase();
   async function scanMisfire(){
     if(!scanCh.current) return;
     if(isCanProto(scanProto.current) === false){ toast(T("ספירת פספוסים זמינה רק ברכבי CAN")); return; }
@@ -1000,8 +1132,8 @@ export default function App(){
     while(liveRef.current && scanCh.current){ await scanReadLiveOnce(); await new Promise(r=>setTimeout(r,300)); }
     liveRef.current=false; setLiveOn(false);
   }
-  async function scanTerminal(){
-    const c = termCmd.trim().toUpperCase(); if(!c || !scanCh.current) return;
+  async function scanTerminal(cmdIn){
+    const c = String(typeof cmdIn==="string" ? cmdIn : termCmd).trim().toUpperCase(); if(!c || !scanCh.current) return;
     if(/^0?4$/.test(c)){ scanClearDTCs(); setTermCmd(""); return; }
     slog("> "+c); const r = await scanSendCmd(c,6000); slog("< "+(elmLines(r).join(" | ")||T("אין תשובה"))); setTermCmd("");
   }
@@ -1261,7 +1393,11 @@ export default function App(){
         {!conn && <p style={{ color:S.muted, fontSize:"12px", margin:"0 0 10px" }}>{T("חבר מתאם ELM327 BLE לשקע OBD, הדלק הצתה ולחץ התחבר. עובד ב-Chrome באנדרואיד ובמחשב.")}</p>}
         {scanStatus==="unsupported" && <div style={{ background:`${S.red}18`, border:`1px solid ${S.red}`, borderRadius:"10px", padding:"9px", marginBottom:"10px" }}><p style={{ color:S.red, fontSize:"12px", margin:0 }}>⚠️ {T("הדפדפן לא תומך ב-Web Bluetooth. השתמש ב-Chrome באנדרואיד או במחשב.")}</p></div>}
         {!conn
-          ? <div style={{ display:"flex", gap:"8px" }}><Btn kind="green" disabled={busy} onClick={scanConnect} style={{ flex:2 }}>{scanStatus==="searching"?"🔍 "+T("מחפש..."):scanStatus==="connecting"?"🔄 "+T("מתחבר..."):"🔗 "+T("התחבר לסורק")}</Btn><Btn kind="ghost" disabled={busy} onClick={scanDemo} style={{ flex:1 }}>🎮 {T("הדגמה")}</Btn></div>
+          ? <><div style={{ display:"flex", gap:"8px" }}><Btn kind="green" disabled={busy} onClick={scanConnect} style={{ flex:2 }}>{scanStatus==="searching"?"🔍 "+T("מחפש..."):scanStatus==="connecting"?"🔄 "+T("מתחבר..."):"🔗 "+T("התחבר לסורק")}</Btn><Btn kind="ghost" disabled={busy} onClick={scanDemo} style={{ flex:1 }}>🎮 {T("הדגמה")}</Btn></div>
+          {typeof navigator!=="undefined" && navigator.serial ? <div style={{ display:"flex", gap:"8px", marginTop:"8px", alignItems:"center" }}>
+            <Btn kind="blue" disabled={busy} onClick={scanConnectSerial} style={{ flex:2 }}>📶 {T("Bluetooth קלאסי / USB")}</Btn>
+            <select value={serialBaud} onChange={e=>setSerialBaud(e.target.value)} aria-label={T("מהירות USB")} style={{ flex:1, minHeight:"44px", borderRadius:"10px", border:`1px solid ${S.bdr}`, background:S.inner, color:S.text, fontFamily:"inherit", padding:"0 6px" }}>{["38400","115200","9600","500000"].map(b=> <option key={b} value={b}>{b}</option>)}</select>
+          </div> : <p style={{ color:S.muted, fontSize:"11px", margin:"8px 0 0" }}>{T("מתאם Bluetooth קלאסי או USB? צריך Chrome 137 ומעלה באנדרואיד, או Chrome במחשב.")}</p>}</>
           : <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}><Btn onClick={scanQuickRead} disabled={!!scanBusy} style={{ flex:2 }}>{scanBusy?"⏳ "+T("קורא..."):"🔍 "+T("סריקה מלאה")}</Btn><Btn kind="danger" onClick={scanDisconnect} style={{ flex:1 }}>🔌 {T("נתק")}</Btn></div>}
         {conn && <Btn kind="green" onClick={()=>setReportOpen(true)} disabled={!!scanBusy} style={{ width:"100%", marginTop:"8px", fontSize:"15px" }}>🧠 {T("בדוק, סכם והסבר")}</Btn>}
         {conn && (scanVin || scanLive.batt || scanReady) && <div style={{ display:"grid", gridTemplateColumns:"auto 1fr", gap:"3px 12px", fontSize:"12px", marginTop:"10px" }}>
@@ -1299,6 +1435,32 @@ export default function App(){
             <Btn kind={recOn?"danger":"ghost"} onClick={recToggle} style={{ flex:1 }}>{recOn?"⏹ "+T("עצור הקלטה"):"⏺ "+T("הקלט")}</Btn>
             {!recOn && recRows.current.length>0 && <Btn kind="ghost" onClick={recCsv} style={{ flex:1 }}>📥 CSV ({recRows.current.length})</Btn>}
           </div>
+          {(()=>{ const al = liveOn ? liveAlerts(scanLive) : []; return al.length>0 && <div style={{ marginBottom:"8px" }}>{al.map((a,i)=> <div key={i} style={{ background:`${a.c}1A`, border:`1px solid ${a.c}`, color:a.c, borderRadius:"8px", padding:"6px 9px", fontSize:"12px", fontWeight:700, marginBottom:"4px" }}>{a.m}</div>)}</div>; })()}
+          <div style={{ display:"flex", gap:"6px", marginBottom:"8px" }}><Chip active={!dashView} onClick={()=>setDashView(false)}>📋 {T("רשימה")}</Chip><Chip active={dashView} onClick={()=>{ setDashView(true); if(liveGroup!=="basic") setLiveGroup("basic"); }}>🎛️ {T("שעונים ונסיעה")}</Chip></div>
+          {dashView ? (()=>{ const f = fuelLph(scanLive); const spd = parseFloat(scanLive["0D"]); const l100 = f && spd > 3 ? f.v/spd*100 : null; const P = perfRef.current; const R = tripRef.current; const volt = scanLive.batt || scanLive["42"];
+            const tile = (lab,val,unit) => <div style={{ background:S.inner, borderRadius:"10px", padding:"8px 4px", textAlign:"center" }}><div style={{ color:S.muted, fontSize:"11px" }}>{lab}</div><div dir="ltr" style={{ color:S.acc, fontWeight:800, fontSize:"17px", unicodeBidi:"isolate" }}>{val ?? "—"}</div><div style={{ color:S.muted, fontSize:"10px" }}>{unit}</div></div>;
+            const dur = R.start ? (R.on ? Date.now() : (R.last||Date.now())) - R.start : 0;
+            return <div>
+              <div style={{ display:"flex", gap:"4px" }}><Gauge value={scanLive["0C"]} max={8000} warn={6500} unit="rpm" label={T("סל\"ד")}/><Gauge value={scanLive["0D"]} max={240} unit="km/h" label={T("מהירות")}/><Gauge value={scanLive["05"]} max={130} warn={105} unit="°C" label={T("טמפ׳ מים")}/></div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"6px", margin:"8px 0" }}>
+                {tile(T("מתח"), volt, "V")}{tile(T("צריכה"), f ? f.v.toFixed(1) : null, "L/h")}{tile(T("ממוצע רגעי"), l100 ? l100.toFixed(1) : null, "L/100km")}{tile(T("טמפ׳ שמן"), scanLive["5C"], "°C")}
+              </div>
+              {f && f.est && <p style={{ color:S.muted, fontSize:"11px", margin:"0 0 8px" }}>{T("הצריכה מוערכת מחיישן ה-MAF (מדויק לבנזין בלבד).")}</p>}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+                <div style={{ background:S.inner, borderRadius:"10px", padding:"9px" }}>
+                  <div style={{ fontWeight:700, fontSize:"13px", marginBottom:"4px" }}>🏁 0–100</div>
+                  <div dir="ltr" style={{ color:S.acc, fontWeight:800, fontSize:"20px", textAlign:"center", unicodeBidi:"isolate" }}>{P.time ? P.time+" s" : P.armed ? (P.start ? ((Date.now()-P.start)/1000).toFixed(1)+" s" : "…") : "—"}</div>
+                  <p style={{ color:S.muted, fontSize:"11px", margin:"2px 0 6px", textAlign:"center" }}>{P.armed ? (P.start ? T("מודד...") : T("מוכן — התחל לנסוע מעמידה")) : T("מדידה אמיתית רק במקום בטוח וחוקי")}</p>
+                  <Btn kind={P.armed?"danger":"ghost"} disabled={!liveOn} onClick={()=>{ perfRef.current = P.armed ? { armed:false, start:0, time:P.time } : { armed:true, start:0, time:null }; setLiveTick(x=>x+1); }} style={{ width:"100%" }}>{P.armed?T("בטל"):T("הכן מדידה")}</Btn>
+                </div>
+                <div style={{ background:S.inner, borderRadius:"10px", padding:"9px" }}>
+                  <div style={{ fontWeight:700, fontSize:"13px", marginBottom:"4px" }}>🗺️ {T("מחשב נסיעה")}</div>
+                  <div dir="ltr" style={{ fontSize:"12px", color:S.sub, lineHeight:1.6, unicodeBidi:"isolate", textAlign:"center" }}>{R.km.toFixed(2)} km · {fmtT(dur)}<br/>{dur>60000 ? (R.km/(dur/3600000)).toFixed(0)+" km/h" : "— km/h"} · {R.fuelL ? R.fuelL.toFixed(2)+" L" : "— L"}</div>
+                  <Btn kind={R.on?"danger":"ghost"} disabled={!liveOn && !R.on} onClick={()=>{ tripRef.current = R.on ? { ...R, on:false } : { on:true, start:Date.now(), last:0, km:0, fuelL:0 }; setLiveTick(x=>x+1); }} style={{ width:"100%", marginTop:"6px" }}>{R.on?T("עצור נסיעה"):T("התחל נסיעה")}</Btn>
+                </div>
+              </div>
+              {!liveOn && <p style={{ color:S.muted, fontSize:"11px", margin:"8px 0 0" }}>{T("הפעל קריאה רציפה כדי שהשעונים יזוזו.")}</p>}
+            </div>; })() : <>
           {groupsAvail().length>1 && <div style={{ display:"flex", gap:"6px", overflowX:"auto", paddingBottom:"8px", marginBottom:"4px" }}>{groupsAvail().map(([g,he,enl])=> <Chip key={g} active={liveGroup===g} onClick={()=>setLiveGroup(g)}>{en()?enl:he} ({pidsOfGroup(g).filter(supPid).length})</Chip>)}</div>}
           {liveSel && (()=>{ const p = liveSel==="batt" ? { he:"מתח במחבר OBD", en:"OBD socket voltage", unit:"V" } : LIVE_PIDS.find(x=>x.pid===liveSel); const arr = liveHist.current[liveSel] || []; return <div style={{ background:S.inner, borderRadius:"12px", padding:"10px", marginBottom:"10px", border:`1px solid ${S.acc}` }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}><span style={{ color:S.acc, fontWeight:800, fontSize:"14px" }}>{p?(en()?p.en:p.he):liveSel} <span dir="ltr" style={{ color:S.text, unicodeBidi:"isolate" }}>{scanLive[liveSel]||"—"} {p&&p.unit}</span></span><IconBtn label={T("סגור גרף")} onClick={()=>setLiveSel("")}>✕</IconBtn></div>
@@ -1309,6 +1471,45 @@ export default function App(){
             {[...(liveGroup==="basic" && scanLive.batt ? [{ pid:"batt", he:"מתח במחבר OBD", en:"OBD socket voltage", unit:"V" }] : []), ...livePids()].map(p=> <button key={p.pid} onClick={()=>!p.txt && setLiveSel(liveSel===p.pid?"":p.pid)} style={{ background:S.inner, borderRadius:"10px", padding:"8px 4px 4px", textAlign:"center", border:`1px solid ${liveSel===p.pid?S.acc:"transparent"}`, cursor:p.txt?"default":"pointer", fontFamily:"inherit", minWidth:0 }}><p style={{ color:S.muted, fontSize:"11px", margin:"0 0 2px" }}>{en()?p.en:p.he}</p>{p.txt ? <span style={{ color:S.acc, fontSize:"13px", fontWeight:800 }}>{scanLive[p.pid]||"—"}</span> : <span dir="ltr" style={{ color:S.acc, fontSize:"17px", fontWeight:800, fontFamily:"monospace", unicodeBidi:"isolate" }}>{scanLive[p.pid]||"—"}</span>}<p style={{ color:S.muted, fontSize:"10px", margin:"2px 0 0" }} dir="ltr">{p.unit}{scanLive[p.pid+"_2"]?` · ${scanLive[p.pid+"_2"]}`:""}</p>{!p.txt && <LiveChart data={liveHist.current[p.pid]}/>}</button>)}
           </div>
           <p style={{ color:S.muted, fontSize:"11px", margin:"8px 0 0" }}>{T("לחץ על נתון כדי לראות גרף גדול. ההקלטה שומרת את כל הנתונים לקובץ CSV שנפתח באקסל.")}</p>
+          </>}
+        </Card>
+        <Card title={"🧩 "+T("כל מחשבי הרכב")+(ecuList?` (${ecuList.filter(e=>e.ok).length})`:"")} actions={ecuList && ecuList.some(e=>e.ok) && <IconBtn label={T("סרוק שוב")} onClick={()=>ecuScan(false)}>🔄</IconBtn>}>
+          <p style={{ color:S.muted, fontSize:"12px", margin:"0 0 8px" }}>{T("בודק אילו מחשבים עונים ברכב (מנוע, תיבה, ABS, כריות, מרכב, שעונים ועוד), וקורא מכל אחד מספר שילדה, גרסאות וקודי תקלה. שמות המחשבים משוערים לפי הכתובת — הם משתנים בין יצרנים. עובד ברכבי CAN; חלק מהיצרנים חוסמים גישה דרך ה-Gateway.")}</p>
+          {ecuProg && <p style={{ color:S.acc, fontSize:"12px", margin:"0 0 8px" }}>⏳ {ecuProg}</p>}
+          {!ecuList ? <Btn kind="ghost" onClick={()=>ecuScan(false)} disabled={!!scanBusy} style={{ width:"100%" }}>🧩 {T("סרוק את כל המחשבים")}</Btn>
+            : <>
+              {ecuList.filter(e=>e.ok).length===0 && <p style={{ color:S.sub, fontSize:"13px", margin:"0 0 8px" }}>ℹ️ {T("אף מחשב נוסף לא ענה בכתובות הנפוצות.")}</p>}
+              {ecuList.filter(e=>e.ok).map(e=>{ const d = ecuDet[e.a]; const open = ecuOpen===e.a; const nc = d && d.dtcs ? d.dtcs.length : null; const mVin = d && d.dids.F190; const vinBad = mVin && scanVin && mVin.length>=11 && mVin!==scanVin;
+                return <div key={e.a} style={{ border:`1px solid ${nc?S.red:S.bdr}`, borderRadius:"10px", marginBottom:"6px", background:S.inner }}>
+                  <button onClick={()=>setEcuOpen(open?"":e.a)} style={{ ...rowBtn(), background:"transparent", border:"none", width:"100%" }}>
+                    <span style={{ fontSize:"18px" }}>{e.ic}</span>
+                    <span style={{ flex:1, textAlign:"start" }}><span style={{ fontWeight:700, fontSize:"13px", color:S.text }}>{d && d.dids.F197 ? d.dids.F197 : (en()?e.n:e.h)}</span><span style={{ color:S.muted, fontSize:"11px", fontFamily:"monospace" }}> · {e.a}</span></span>
+                    {nc!==null && <span style={{ color:nc?S.red:S.green, fontWeight:700, fontSize:"12px" }}>{nc ? T("{n} קודים",{ n:nc }) : "✅"}</span>}
+                    {vinBad && <span title="VIN" style={{ color:S.red }}>🚩</span>}
+                    <span style={{ color:S.muted }}>{open?"▲":"▼"}</span>
+                  </button>
+                  {open && <div style={{ padding:"0 10px 10px" }}>
+                    {!d ? <p style={{ color:S.muted, fontSize:"12px", margin:"0 0 6px" }}>{T("עוד לא נקראו פרטים")}</p> : <>
+                      <div style={{ display:"grid", gridTemplateColumns:"auto 1fr", gap:"3px 10px", fontSize:"12px" }}>
+                        {UDS_DIDS.filter(x=>d.dids[x.d]).map(x=> [<span key={x.d+"k"} style={{ color:S.muted }}>{en()?x.n:x.h}</span>, <span key={x.d+"v"} dir="ltr" style={{ fontFamily:"monospace", color:S.text, unicodeBidi:"isolate", textAlign:"start", wordBreak:"break-all" }}>{d.dids[x.d]}</span>])}
+                      </div>
+                      {Object.keys(d.dids).length===0 && <p style={{ color:S.muted, fontSize:"12px", margin:"0 0 4px" }}>{T("המחשב לא מסר פרטי זיהוי (נפוץ במחשבים ישנים או ביצרנים שחוסמים).")}</p>}
+                      {vinBad && <p style={{ color:S.red, fontSize:"12px", fontWeight:700, margin:"6px 0" }}>🚩 {T("מספר השילדה במחשב הזה שונה ממספר השילדה של הרכב — ייתכן שהמחשב הוחלף או הגיע מרכב אחר.")}</p>}
+                      {d.dtcs ? (d.dtcs.length ? d.dtcs.map(x=> <button key={x.code} onClick={()=>searchCode(x.code)} style={{ ...rowBtn(), border:`1px solid ${x.active?S.red:S.warn}`, borderRadius:"8px", marginTop:"5px" }}><span style={{ color:x.active?S.red:S.warn, fontWeight:700, fontFamily:"monospace", minWidth:"58px" }}>{x.code}</span><span style={{ flex:1, fontSize:"12px", color:S.sub, textAlign:"start" }}>{codeTitle(x.code) || T("קוד יצרן — חפש בגוגל לפי הדגם")} · {x.active?T("פעיל"):T("שמור במחשב")}</span></button>)
+                        : <p style={{ color:S.green, fontSize:"12px", margin:"6px 0 0" }}>✅ {T("אין קודי תקלה במחשב הזה")}</p>)
+                        : <p style={{ color:S.muted, fontSize:"12px", margin:"6px 0 0" }}>{T("קריאת קודים לא נתמכת כאן")} ({d.note})</p>}
+                    </>}
+                    <div style={{ display:"flex", gap:"6px", marginTop:"8px" }}>
+                      <Btn kind="ghost" onClick={()=>ecuReadAll(e)} disabled={!!scanBusy} style={{ flex:1 }}>📄 {d?T("קרא שוב"):T("קרא פרטים וקודים")}</Btn>
+                      {d && d.dtcs && d.dtcs.length>0 && <Btn kind="danger" onClick={()=>ecuClear(e)} disabled={!!scanBusy} style={{ flex:1 }}>🗑️ {T("מחק קודים")}</Btn>}
+                    </div>
+                  </div>}
+                </div>; })}
+              <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginTop:"6px" }}>
+                {ecuList.some(e=>e.ok) && <Btn onClick={()=>ecuReadAll()} disabled={!!scanBusy} style={{ flex:2 }}>📄 {T("קרא פרטים וקודים מכולם")}</Btn>}
+                <Btn kind="ghost" onClick={()=>ecuScan(true)} disabled={!!scanBusy} style={{ flex:1 }}>🔎 {T("סריקה מורחבת")}</Btn>
+              </div>
+            </>}
         </Card>
         <Card title={"📏 "+T("ק\"מ ממחשבי הרכב (איפה שנתמך)")} actions={<IconBtn label={T("קרא ק\"מ")} onClick={scanOdometer}>🔄</IconBtn>}>
           <p style={{ color:S.muted, fontSize:"12px", margin:"0 0 8px" }}>{T("רכבים חדשים (בערך מ-2019) מוסרים את הק\"מ דרך OBD מכמה מחשבים. השוואה ביניהם ומול לוח השעונים עוזרת לזהות מונה שהוחזר. רוב הרכבים הישנים לא מוסרים ק\"מ בדרך הזו.")}</p>
@@ -1339,12 +1540,18 @@ export default function App(){
         </Card>
       </>}
       <Card title={"📋 "+T("יומן סורק")} actions={scanLog.length>0&&<IconBtn label={T("נקה")} onClick={()=>setScanLog([])}>🧹</IconBtn>}>
-        {scanLog.length===0 ? <p style={{ color:S.muted, fontSize:"12px", textAlign:"center" }}>{T("עדיין לא התחברת")}</p> : <div style={{ maxHeight:"220px", overflowY:"auto" }}>{scanLog.map((l,i)=> <p key={i} style={{ color:S.sub, fontSize:"12px", margin:"3px 0", borderBottom:`1px solid ${S.bdr}`, paddingBottom:"3px", fontFamily:"monospace", wordBreak:"break-word" }}>{l}</p>)}</div>}
+        {scanLog.length===0 ? <p style={{ color:S.muted, fontSize:"12px", textAlign:"center" }}>{T("עדיין לא התחברת")}</p> : <div ref={el=>{ if(el) el.scrollTop = el.scrollHeight; }} style={{ maxHeight:"220px", overflowY:"auto" }}>{scanLog.map((l,i)=> <p key={i} style={{ color:S.sub, fontSize:"12px", margin:"3px 0", borderBottom:`1px solid ${S.bdr}`, paddingBottom:"3px", fontFamily:"monospace", wordBreak:"break-word" }}>{l}</p>)}</div>}
         {conn && <div style={{ display:"flex", gap:"6px", marginTop:"8px" }}><Field value={termCmd} onChange={e=>setTermCmd(e.target.value)} onKeyDown={e=>e.key==="Enter"&&scanTerminal()} placeholder={T("פקודה ידנית (למשל ATRV או 010C)")} aria-label={T("פקודה ידנית")} style={{ fontFamily:"monospace", direction:"ltr" }}/><Btn kind="ghost" onClick={scanTerminal}>{T("שלח")}</Btn></div>}
+        {conn && <div style={{ marginTop:"8px" }}>
+          <div style={{ color:S.sub, fontSize:"12px", fontWeight:700, marginBottom:"4px" }}>⚡ {T("פקודות מהירות")}</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:"5px" }}>{[["ATI","גרסת מתאם"],["ATRV","מתח"],["ATDP","פרוטוקול"],["0100","PID נתמכים"],["010C","סל\"ד"],["0105","טמפ׳ מים"],["0101","מוכנות"],["011C","תקן OBD"],["03","קודים"],["07","ממתינים"],["0902","VIN"],["0904","מספר כיול"],["0906","CVN"],["090A","שם המחשב"]].map(([c,l])=> <button key={c} disabled={!!scanBusy} onClick={()=>scanTerminal(c)} style={{ background:S.inner, border:`1px solid ${S.bdr}`, color:S.sub, borderRadius:"8px", padding:"6px 8px", fontSize:"11px", cursor:"pointer", fontFamily:"inherit" }}><b dir="ltr" style={{ fontFamily:"monospace", color:S.acc }}>{c}</b> {T(l)}</button>)}</div>
+          <button onClick={()=>setSupOpen(!supOpen)} style={{ background:"transparent", border:"none", color:S.acc, fontSize:"12px", fontWeight:700, cursor:"pointer", padding:"8px 0 0", fontFamily:"inherit" }}>📋 {T("נתונים שהרכב תומך בהם")} ({scanSup.current ? scanSup.current.size : 0}) {supOpen?"▲":"▼"}</button>
+          {supOpen && <div style={{ display:"flex", flexWrap:"wrap", gap:"4px", marginTop:"6px" }}>{scanSup.current ? [...scanSup.current].sort().map(pid=>{ const p = LIVE_PIDS.find(x=>x.pid===pid); return <span key={pid} style={{ background:S.inner, borderRadius:"6px", padding:"3px 6px", fontSize:"11px", color:p?S.text:S.muted }}><b dir="ltr" style={{ fontFamily:"monospace", color:S.acc }}>{pid}</b> {p?(en()?p.en:p.he):""}</span>; }) : <span style={{ color:S.muted, fontSize:"12px" }}>{T("אין מידע")}</span>}</div>}
+        </div>}
       </Card>
       <Card title={"💡 "+T("מדריך")}><div style={{ fontSize:"13px", color:S.sub, lineHeight:1.7 }}>
         <p>1. {T("קנה מתאם ELM327 BLE (למשל Vgate iCar Pro BT 4.0)")}</p><p>2. {T("חבר לשקע OBD-II ברכב והדלק הצתה")}</p><p>3. {T("הפעל Bluetooth ומיקום בטלפון")}</p><p>4. {T("לחץ \"התחבר\" ובחר את המתאם (למשל IOS-Vlink)")}</p>
-        <p style={{ color:S.warn }}>⚠️ {T("דרוש מתאם BLE — מתאם Bluetooth קלאסי (BT 2.0/3.0) או WiFi לא יתחבר מהדפדפן.")}</p>
+        <p>📶 {T("מתאם Bluetooth קלאסי (BT 2.0/3.0): קודם מצמדים אותו בהגדרות ה-Bluetooth של הטלפון (קוד 1234 או 0000), ואז \"Bluetooth קלאסי / USB\". דורש Chrome 137 ומעלה.")}</p><p>🔌 {T("מתאם USB: במחשב עם Chrome. אם אין תשובה — נסה מהירות 38400 או 115200.")}</p><p style={{ color:S.warn }}>⚠️ {T("מתאם WiFi לא יכול להתחבר מדפדפן (הדפדפן לא פותח חיבור TCP ישיר). השתמש במתאם BLE, Bluetooth קלאסי או USB.")}</p>
         <p>🎮 {T("רוצה לראות איך זה נראה בלי רכב? לחץ \"הדגמה\".")}</p>
       </div></Card>
     </>;
@@ -1801,7 +2008,7 @@ export default function App(){
       {dgSheet && <DiagramSheet key={dgSheet.meta?dgSheet.meta.id:"new"} init={dgSheet.meta} preset={dgVeh()} busy={dgBusy} onSave={saveDiagram} onDelete={deleteDiagram} onClose={()=>setDgSheet(null)} askConfirm={askConfirm} backArrow={backArrow}/>}
       {dgView && <DiagramViewer meta={dgView} onClose={()=>setDgView(null)} onMarks={mk=>setMarks(dgView.id, mk)} onEdit={()=>setDgSheet({ meta:dgView })} askConfirm={askConfirm} backArrow={backArrow}/>}
       {!assistOpen && !reportOpen && !dgView && !dgSheet && !wlSheet && guideStep<0 && <button onClick={openAssist} aria-label={T("העוזר")} style={{ position:"fixed", zIndex:60, bottom:"calc(78px + env(safe-area-inset-bottom))", insetInlineEnd:"14px", width:"54px", height:"54px", borderRadius:"50%", border:`2px solid ${S.acc}`, background:S.card, color:S.acc, fontSize:"26px", boxShadow:"0 4px 14px rgba(0,0,0,.45)", cursor:"pointer" }}>🤖</button>}
-      {reportOpen && <ScanReport onClose={()=>setReportOpen(false)} getCtx={assistCtx} aiCfg={aiCfg} odo={scanOdo} proto={protoName(scanProto.current)} batt={scanLive.batt} onOpenAssist={()=>{ setReportOpen(false); openAssist(); }} onOpenSettings={()=>{ setReportOpen(false); setAssistView("settings"); setAssistOpen(true); }} backArrow={backArrow}/>}
+      {reportOpen && <ScanReport onClose={()=>setReportOpen(false)} getCtx={assistCtx} aiCfg={aiCfg} odo={scanOdo} ecus={ecuList} ecuDet={ecuDet} proto={protoName(scanProto.current)} batt={scanLive.batt} onOpenAssist={()=>{ setReportOpen(false); openAssist(); }} onOpenSettings={()=>{ setReportOpen(false); setAssistView("settings"); setAssistOpen(true); }} backArrow={backArrow}/>}
       {assistOpen && <AssistantPanel onClose={()=>setAssistOpen(false)} getCtx={assistCtx} messages={chat} setMessages={setChat} aiCfg={aiCfg} setAiCfg={setAiCfg} onAction={assistAct} actLabel={assistActLabel} askConfirm={askConfirm} backArrow={backArrow} view={assistView} setView={setAssistView}/>}
       {/* onboarding guide */}
       {guideStep>=0 && <div style={{ ...overlay, zIndex:400 }}><div role="dialog" aria-modal="true" style={{ background:S.card, borderRadius:"18px", border:`2px solid ${S.acc}`, width:"100%", maxWidth:"380px", padding:"22px 18px", textAlign:"center" }}>

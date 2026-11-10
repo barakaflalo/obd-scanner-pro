@@ -125,7 +125,7 @@ export function openExt(url){
 
 
 // ═══ App context shared with non-React helpers (print/share) ═══
-export const APP_VERSION = "2.0.0";
+export const APP_VERSION = "2.1.0";
 export const ctx = { lang: "he", user: { name: "", phone: "", address: "", bizId: "", logo: "" } };
 export const ABOUT = {
   title: "OBD Scanner Pro",
@@ -333,12 +333,78 @@ export function mode06Supported(raw, base){
 }
 
 // ═══ Demo adapter: answers like a real ELM327 so the scanner can be tried without a car ═══
+
+// ═══ the car's other computers (CAN 11-bit: request address → reply address = +8) ═══
+// names are what the address usually is — makers differ, so the screen says "common name"
+export const ECUS = [
+  { a:"7E0", r:"7E8", n:"ECM — Engine", h:"מחשב מנוע", ic:"⚙️" },
+  { a:"7E1", r:"7E9", n:"TCM — Transmission", h:"תיבת הילוכים", ic:"🔄" },
+  { a:"7E2", r:"7EA", n:"HV — Hybrid/EV", h:"היברידי / חשמלי", ic:"🔋" },
+  { a:"7E3", r:"7EB", n:"Aux powertrain", h:"מחשב הנעה נוסף", ic:"⚙️" },
+  { a:"7E5", r:"7ED", n:"ADAS / chassis", h:"נהיגה חכמה / שלדה", ic:"🛰️" },
+  { a:"7E6", r:"7EE", n:"BMS — Battery", h:"ניהול מצבר", ic:"🔋" },
+  { a:"720", r:"728", n:"BCM — Body", h:"מרכב", ic:"🚪" },
+  { a:"730", r:"738", n:"SRS — Airbags", h:"כריות אוויר", ic:"🛡️" },
+  { a:"740", r:"748", n:"IC — Instrument cluster", h:"לוח שעונים", ic:"📊" },
+  { a:"750", r:"758", n:"ABS — Brakes", h:"בלמים ABS", ic:"🛞" },
+  { a:"760", r:"768", n:"EPS — Steering", h:"הגה כוח", ic:"🎡" },
+  { a:"770", r:"778", n:"HVAC — Climate", h:"מיזוג", ic:"❄️" },
+  { a:"780", r:"788", n:"TPMS / SRS", h:"לחץ צמיגים / כריות", ic:"🔵" },
+  { a:"790", r:"798", n:"GW — Gateway", h:"שער תקשורת", ic:"🌐" },
+  { a:"7A0", r:"7A8", n:"PDC — Parking", h:"חיישני חנייה", ic:"🅿️" },
+  { a:"7B0", r:"7B8", n:"ABS / Smart key", h:"ABS / מפתח חכם", ic:"🔑" },
+  { a:"7C0", r:"7C8", n:"Body / Meter", h:"מרכב / שעונים", ic:"📟" },
+  { a:"7C4", r:"7CC", n:"HU — Head unit", h:"מולטימדיה", ic:"🎵" },
+  { a:"7D0", r:"7D8", n:"EPB / Steering", h:"בלם חנייה / הגה", ic:"🅿️" },
+];
+// every other 11-bit address with the +8 reply rule (for the "wide scan")
+export function ecusWide(){
+  const known = new Set(ECUS.map(e=>e.a)); const out = [];
+  for(let a=0x700; a<=0x7D0; a+=8){ const A = a.toString(16).toUpperCase(); if(!known.has(A)) out.push({ a:A, r:(a+8).toString(16).toUpperCase(), n:"Unknown "+A, h:"מחשב "+A, ic:"❔" }); }
+  for(let a=0x7E4; a<=0x7E7; a++){ const A = a.toString(16).toUpperCase(); if(!known.has(A)) out.push({ a:A, r:(a+8).toString(16).toUpperCase(), n:"Unknown "+A, h:"מחשב "+A, ic:"❔" }); }
+  return out;
+}
+export const UDS_DIDS = [
+  { d:"F190", n:"VIN", h:"מספר שילדה", txt:true },
+  { d:"F197", n:"System name", h:"שם המערכת", txt:true },
+  { d:"F187", n:"Part number", h:"מק\"ט", txt:true },
+  { d:"F191", n:"HW version", h:"גרסת חומרה", txt:true },
+  { d:"F195", n:"SW version", h:"גרסת תוכנה", txt:true },
+  { d:"F18C", n:"ECU serial", h:"מספר סידורי", txt:true },
+];
+// join an ELM reply (with or without "0:/1:" multi-frame prefixes and headers off) into one hex string
+export function elmHex(raw){
+  return elmLines(raw).filter(l=>!/^[0-9A-F]{3}$/i.test(l.replace(/\s/g,""))).map(l=>l.replace(/\s/g,"").toUpperCase().replace(/^[0-9A-F]:/,"")).join("");
+}
+// UDS 22 xxxx → { hex, text } or null (7F = negative reply)
+export function parseUdsDid(raw, did){
+  const h = elmHex(raw); const px = "62"+did.toUpperCase(); const i = h.indexOf(px); if(i<0) return null;
+  const data = h.slice(i+px.length).replace(/[^0-9A-F]/g,"");
+  let txt = ""; for(let j=0;j+1<data.length;j+=2){ const c = parseInt(data.slice(j,j+2),16); if(c>=32&&c<=126) txt += String.fromCharCode(c); }
+  return { hex:data, text:txt.trim() };
+}
+const DTC_LET = ["P","C","B","U"];
+export function dtcFromHex(h4){ const b0 = parseInt(h4.slice(0,2),16); return DTC_LET[b0>>6] + ((b0>>4)&3) + h4.slice(1,4).toUpperCase(); }
+// UDS 19 02 FF → [{ code, status, confirmed, active }]
+export function parseUdsDTCs(raw){
+  const h = elmHex(raw); const i = h.indexOf("5902"); if(i<0) return null;
+  const d = h.slice(i+6); const out = []; const seen = new Set();
+  for(let j=0; j+8<=d.length; j+=8){ const rec = d.slice(j,j+8); if(/^0{6}/.test(rec)) continue;
+    const code = dtcFromHex(rec.slice(0,4)); const st = parseInt(rec.slice(6,8),16); if(seen.has(code)) continue; seen.add(code);
+    out.push({ code, ft:rec.slice(4,6), status:st, active:!!(st&1), confirmed:!!(st&8) }); }
+  return out;
+}
+// KWP/UDS negative reply code → short text
+export function nrcText(raw){ const h = elmHex(raw); const m = /7F([0-9A-F]{2})([0-9A-F]{2})/.exec(h); if(!m) return ""; const N = { "11":"service not supported", "12":"sub-function not supported", "13":"bad length", "22":"conditions not correct", "31":"request out of range", "33":"security access denied", "7E":"not in this session", "7F":"not in this session" }; return `7F ${m[1]} ${m[2]}${N[m[2]]?" ("+N[m[2]]+")":""}`; }
+
 export function makeDemoAdapter(){
   const vin = "JTDBR32E720123456";
   const sup = ["01","03","04","05","06","07","08","09","0B","0C","0D","0E","0F","10","11","13","15","19","1C","1F","20","21","2E","2F","30","31","32","33","34","38","3C","3D","40","42","44","46","4E","5C"];
   const mask = (base) => { let m=0; for(const p of sup){ const n=parseInt(p,16)-parseInt(base,16); if(n>=1&&n<=32) m |= (1<<(32-n)); } return ("41"+base+(m>>>0).toString(16).toUpperCase().padStart(8,"0")); };
   const hex = (n,len=2)=>Math.max(0,Math.round(n)).toString(16).toUpperCase().padStart(len,"0");
-  let t0 = Date.now(); let cleared = false; let hdr = false;
+  let t0 = Date.now(); let cleared = false; let hdr = false; let sh = "7DF";
+  const ecuAct = { "7E0":{ name:"ENGINE ECU", sw:"89661-30M10", hw:"HW-0212", dtc:"" }, "7E1":{ name:"TRANSMISSION", sw:"89530-30E40", hw:"HW-0107", dtc:"" }, "720":{ name:"BODY CONTROL", sw:"BCM-4.12", hw:"B-03", dtc:"" }, "730":{ name:"AIRBAG SRS", sw:"SRS-2.0", hw:"S-11", dtc:"80010008" }, "740":{ name:"COMBINATION METER", sw:"83800-3T050", hw:"M-21", dtc:"" }, "750":{ name:"ABS/VSC", sw:"ABS-7.3", hw:"A-05", dtc:"40350009C1210008" }, "760":{ name:"POWER STEERING", sw:"EPS-1.8", hw:"E-02", dtc:"" }, "790":{ name:"GATEWAY", sw:"GW-3.1", hw:"G-01", dtc:"" } };
+  const asc = t => t.split("").map(c=>c.charCodeAt(0).toString(16).toUpperCase().padStart(2,"0")).join("");
   const vinFrames = () => { const bytes = ["49","02","01"].concat(vin.split("").map(c=>c.charCodeAt(0).toString(16).toUpperCase())); const out=["014"]; out.push("0:"+bytes.slice(0,6).join("")); let i=6,seq=1; while(i<bytes.length){ out.push(seq+":"+bytes.slice(i,i+7).join("").padEnd(14,"0")); i+=7; seq++; } return out.join("\r"); };
   const live = (pid) => { const s=(Date.now()-t0)/1000; const rpm=820+Math.sin(s/2)*60;
     switch(pid){ case "0C": return hex(rpm*4,4); case "0D": return "00"; case "05": return hex(88+40); case "42": return hex(14100+Math.sin(s)*80,4);
@@ -365,6 +431,22 @@ export function makeDemoAdapter(){
       if(c==="ATH0"){ hdr = false; return "OK\r\r>"; }
       // odometer (PID A6): two ECUs answer — engine and transmission
       if(c==="01A6") return (hdr ? "7E80641A60015BD78\r7E90641A60015BDAA" : "41A60015BD78")+"\r\r>";
+      if(c.startsWith("ATSH")){ sh = c.slice(4)||"7DF"; return "OK\r\r>"; }
+      if(sh!=="7DF" && !/^AT/.test(c)){
+        const e = ecuAct[sh]; const rid = (parseInt(sh,16)+8).toString(16).toUpperCase(); const wrap = d => (hdr ? rid+(d.length/2).toString(16).toUpperCase().padStart(2,"0")+d : d)+"\r\r>";
+        if(!e) return "NO DATA\r\r>";
+        if(c==="3E00") return wrap("7E00");
+        if(/^10(01|03)$/.test(c)) return wrap("50"+c.slice(2)+"003201F4");
+        if(c==="22F190") return wrap("62F190"+asc(vin));
+        if(c==="22F197") return wrap("62F197"+asc(e.name));
+        if(c==="22F195") return wrap("62F195"+asc(e.sw));
+        if(c==="22F191") return wrap("62F191"+asc(e.hw));
+        if(c==="22F187") return wrap("62F187"+asc(e.sw.split("-")[0]+"-0000"));
+        if(c==="22F18C") return wrap("62F18C"+asc("SN"+sh+"0457"));
+        if(c==="1902FF") return wrap("5902FF"+(cleared && (sh==="7E0") ? "" : e.dtc));
+        if(c==="14FFFFFF"){ e.dtc=""; return wrap("54"); }
+        return wrap("7F"+c.slice(0,2)+"11");
+      }
       if(c.startsWith("AT")) return "OK\r\r>";
       if(/^01(00|20|40|60|80|A0)$/.test(c)) { const base=c.slice(2); return (["00","20","40"].includes(base) ? mask(base) : "NO DATA")+"\r\r>"; }
       if(c==="0101") return (cleared ? "4101000765"+"00" : "410182076504")+"\r\r>";
