@@ -1,6 +1,6 @@
-# 🔧 OBD Scanner Pro v2.1.0
+# 🔧 OBD Scanner Pro v2.1.1
 סורק OBD-II מקצועי לכל הרכבים — Barak Aflalo · [AppNest](https://barakaflalo.github.io/appnest)
 © 2026 All rights reserved
 
-- האתר הבנוי נמצא בשורש. קוד המקור בתיקייה `source/` (בנייה: `npm install && bash build.sh`).
+- האתר הבנוי בשורש, קוד המקור ב-`source/` (`npm install && bash build.sh`).
 - `functions/` — Cloudflare Pages Functions (חיפוש לפי מספר רישוי).

@@ -171,7 +171,8 @@ function scanFindings(scan){
   const f = []; if(!scan) return f;
   const lv = scan.live || {};
   const rpm = num(lv["0C"]), ect = num(lv["05"]), st = num(lv["06"]), lt = num(lv["07"]), bat = num(lv.batt), ecuV = num(lv["42"]);
-  const v = bat ?? ecuV;
+  const v = (rpm > 400 && ecuV !== null) ? ecuV : (bat ?? ecuV);
+  if(rpm > 400 && bat !== null && ecuV !== null && ecuV - bat > 0.5) f.push(L(`המתאם מודד ${bat}V אבל מחשב המנוע מודד ${ecuV}V — ההפרש הוא מפל מתח בשקע / במתאם. הטעינה נבדקת לפי המחשב.`,`The adapter reads ${bat}V but the engine computer reads ${ecuV}V — the gap is a voltage drop at the socket / adapter. Charging is judged by the ECU reading.`));
   if(v !== null){ if(rpm > 400 && v < 13.2) f.push(L(`מתח ${v}V עם מנוע עובד — נמוך: בדוק טעינה.`,`${v}V with the engine running — low: check charging.`)); else if(rpm > 400 && v > 15) f.push(L(`מתח ${v}V — טעינת יתר.`,`${v}V — overcharging.`)); else if(!(rpm > 400) && v < 12.2) f.push(L(`מתח ${v}V — המצבר חלש / לא טעון. מתח נמוך גורם לקודים מטעים.`,`${v}V — the battery is weak / not charged. Low voltage causes misleading codes.`)); }
   const st2 = num(lv["08"]), lt2 = num(lv["09"]), purge = num(lv["2E"]);
   const b1 = (st!==null||lt!==null) ? (st||0)+(lt||0) : null, b2 = (st2!==null||lt2!==null) ? (st2||0)+(lt2||0) : null;

@@ -8,7 +8,7 @@ import { askAI, AI_PROVIDERS, cleanKey } from "./ai.js";
 import { DIN, WIRES, FUSES, PROTOCOLS, SECTIONS, E12, FUSE_STEPS } from "./techref.js";
 import { CODES_DB, CAR_MODELS, CAR_MAKES, SYMPTOMS, SENSOR_REF, WIRE_TYPES, WIRE_COLORS, CONVERSIONS, BATTERY_TABLE, DICT, makeFromHe, relatedCodes, circuitFor } from "./data.js";
 import { CODES_EN, SAFE_EN, SYMPTOMS_EN, SENSORS_EN, WIRE_TYPES_EN, WIRE_COLORS_EN, CONV_CAT_EN, BATTERY_EN } from "./data_en.js";
-import { APP_VERSION, ABOUT, ctx, L, uid, esc, loadData, saveData, deleteData, resizeImage, openExt, toast, doPrint, shareText, shareWhatsApp, elmLines, protoName, isCanProto, parsePID, parseDTCs, parseVIN, decodeReadiness, parseSupported, parseFF, LIVE_PIDS, LIVE_GROUPS, pidsOfGroup, parsePIDAll, mergeReadiness, parseMode06, mode06Supported, makeDemoAdapter, fmtPlate, ECUS, ecusWide, UDS_DIDS, parseUdsDid, parseUdsDTCs, nrcText } from "./lib.js";
+import { APP_VERSION, ABOUT, ctx, L, uid, esc, loadData, saveData, deleteData, resizeImage, openExt, toast, doPrint, shareText, shareWhatsApp, elmLines, protoName, isCanProto, parsePID, parseDTCs, parseVIN, decodeReadiness, parseSupported, parseFF, LIVE_PIDS, LIVE_GROUPS, pidsOfGroup, parsePIDAll, mergeReadiness, parseMode06, mode06Supported, makeDemoAdapter, fmtPlate, ECUS, ecusWide, UDS_DIDS, parseUdsDid, parseUdsDTCs, nrcText, parseKwpId, parseKwpDTCs, parseToyota13 } from "./lib.js";
 import { S, THEMES, THEME_ORDER, applyTheme } from "./theme.js";
 import { T } from "./i18n.js";
 
@@ -534,7 +534,7 @@ function ScanReport({ onClose, getCtx, aiCfg, odo, proto, batt, ecus, ecuDet, on
       </Card>}
       {mods.length>0 && <Card title={"🧩 "+T("כל מחשבי הרכב")}>
         {vinMods.map(m=> <p key={m.a} style={{ color:S.red, fontSize:"12px", fontWeight:700, margin:"0 0 6px" }}>🚩 {T("מספר השילדה ב-{n} שונה מזה של הרכב — ייתכן שהמחשב הוחלף.",{ n:modName(m) })}</p>)}
-        {mods.map(m=> <div key={m.a} style={{ display:"flex", gap:"8px", alignItems:"center", fontSize:"13px", padding:"5px 0", borderBottom:`1px solid ${S.bdr}` }}><span>{m.ic}</span><span style={{ flex:1 }}>{modName(m)}</span><span style={{ fontSize:"12px", color: !m.d ? S.muted : (m.d.dtcs && m.d.dtcs.length ? S.red : S.green), fontWeight:700 }}>{!m.d ? T("לא נקרא") : m.d.dtcs ? (m.d.dtcs.length ? T("{n} קודים",{ n:m.d.dtcs.length }) : "✅") : "—"}</span></div>)}
+        {mods.map(m=> <div key={m.a} style={{ display:"flex", gap:"8px", alignItems:"center", fontSize:"13px", padding:"5px 0", borderBottom:`1px solid ${S.bdr}` }}><span>{m.ic}</span><span style={{ flex:1 }}>{modName(m)}</span><span style={{ fontSize:"12px", color: (!m.d || !m.d.dtcs) ? S.muted : (m.d.dtcs.length ? S.red : S.green), fontWeight:700 }}>{!m.d ? T("לא נקרא") : m.d.dtcs ? (m.d.dtcs.length ? T("{n} קודים",{ n:m.d.dtcs.length }) : "✅") : T("קריאת קודים לא נתמכת")}</span></div>)}
         {modCodes.map(x=>{ const i = codeInfo(x.code); return <div key={x.a+x.code} style={{ border:`1px solid ${x.active?S.red:S.warn}`, borderRadius:"10px", padding:"9px", marginTop:"8px", background:S.inner }}>
           <div style={{ display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap" }}><span style={{ color:x.active?S.red:S.warn, fontWeight:800, fontFamily:"monospace" }}>{x.code}</span><span style={{ flex:1, fontSize:"13px", fontWeight:700 }}>{i ? i.title : T("קוד יצרן — חפש בגוגל לפי הדגם")}</span>{i && <SevBadge level={i.sev}/>}</div>
           <div style={{ fontSize:"12px", color:S.muted, margin:"4px 0" }}>{x.mod} · {x.active?T("פעיל"):T("שמור במחשב")}</div>
@@ -1044,7 +1044,7 @@ export default function App(){
     if(R.on){ if(R.last){ const dt = (t-R.last)/3600000; if(dt < 0.01){ R.km += v*dt; const f = fuelLph(snap); if(f) R.fuelL += f.v*dt; } } R.last = t; }
   }
   function liveAlerts(lv){
-    const a = []; const n = k => parseFloat(lv[k]); const volt = isFinite(n("batt")) ? n("batt") : n("42"); const rpm = n("0C");
+    const a = []; const n = k => parseFloat(lv[k]); const rpm = n("0C"); const volt = (rpm > 400 && isFinite(n("42"))) ? n("42") : (isFinite(n("batt")) ? n("batt") : n("42"));
     if(n("05") > 105) a.push({ c:S.red, m:"🌡️ "+T("טמפרטורת מנוע מעל 105°C") });
     if(isFinite(volt) && volt < 11.8) a.push({ c:S.red, m:"🔋 "+T("מתח מתחת ל-11.8V") });
     if(isFinite(volt) && volt > 15) a.push({ c:S.red, m:"🔋 "+T("מתח מעל 15V — טעינת יתר") });
@@ -1083,7 +1083,17 @@ export default function App(){
     await scanSendCmd("ATSH"+e.a,1500); await scanSendCmd("ATCRA"+e.r,1500);
     const det = { dids:{}, dtcs:null, note:"" };
     for(const d of UDS_DIDS){ if(!scanCh.current) break; const v = parseUdsDid(await scanSendCmd("22"+d.d,2500), d.d); if(v) det.dids[d.d] = (d.txt && v.text.length >= 2) ? v.text : v.hex; }
-    const raw = await scanSendCmd("1902FF",3500); det.dtcs = parseUdsDTCs(raw); if(det.dtcs === null) det.note = nrcText(raw) || (elmLines(raw).join(" ") || T("אין תשובה"));
+    const raws = []; const keep = (c,r) => raws.push(c+" → "+(elmLines(r).join(" ").slice(0,60) || "—"));
+    // identification: UDS first, then KWP2000 (Toyota / Lexus / older Asian cars)
+    if(!det.dids.F190){ const r = await scanSendCmd("1A90",2500); keep("1A90",r); const v = parseKwpId(r,"90"); if(v && v.text.length>=11) det.dids.F190 = v.text; }
+    if(!det.dids.F187){ const r = await scanSendCmd("1A87",2500); keep("1A87",r); const v = parseKwpId(r,"87"); if(v) det.dids.F187 = v.text.length>=4 ? v.text : v.hex; }
+    // fault codes: UDS 19 → KWP 18 → Toyota 13 → plain OBD 03/07 for engine-side computers
+    let raw = await scanSendCmd("1902FF",3500); det.dtcs = parseUdsDTCs(raw); det.via = "UDS 19";
+    if(det.dtcs === null){ keep("1902FF",raw); raw = await scanSendCmd("1800FF00",3500); det.dtcs = parseKwpDTCs(raw); det.via = "KWP 18"; }
+    if(det.dtcs === null){ keep("1800FF00",raw); raw = await scanSendCmd("13",3500); det.dtcs = parseToyota13(raw); det.via = "KWP 13"; }
+    if(det.dtcs === null && /^7E[0-7]$/.test(e.a)){ keep("13",raw); const r3 = await scanSendCmd("03",4000), r7 = await scanSendCmd("07",4000);
+      const has = (r,x) => elmLines(r).some(l=>l.replace(/\s/g,"").toUpperCase().replace(/^[0-9A-F]:/,"").startsWith(x)); const s3 = has(r3,"43") ? parseDTCs(r3,"43",true) : null, s7 = has(r7,"47") ? parseDTCs(r7,"47",true) : []; if(Array.isArray(s3)){ det.dtcs = [...s3.map(c=>({ code:c, active:true })), ...(Array.isArray(s7)?s7:[]).filter(c=>!s3.includes(c)).map(c=>({ code:c, active:false }))]; det.via = "OBD 03/07"; } }
+    if(det.dtcs === null){ keep("13",raw); det.note = nrcText(raw) || (elmLines(raw).join(" ") || T("אין תשובה")); det.raw = raws; slog("🔬 "+e.a+": "+raws.join(" | ")); }
     setEcuDet(p=>({ ...p, [e.a]:det }));
     slog("📄 "+(en()?e.n:e.h)+": "+(Object.keys(det.dids).length ? Object.entries(det.dids).map(([k,v])=>k+"="+v).join(", ") : T("לא החזיר פרטים"))+(det.dtcs ? " · "+T("{n} קודים",{ n:det.dtcs.length }) : ""));
     return det;

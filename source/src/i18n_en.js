@@ -664,4 +664,5 @@ export const EN = {
   "CVN": "CVN",
   "שם המחשב": "ECU name",
   "שמור במחשב": "Stored",
+  "קריאת קודים לא נתמכת": "Code reading not supported",
 };

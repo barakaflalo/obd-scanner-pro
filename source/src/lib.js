@@ -125,7 +125,7 @@ export function openExt(url){
 
 
 // ═══ App context shared with non-React helpers (print/share) ═══
-export const APP_VERSION = "2.1.0";
+export const APP_VERSION = "2.1.1";
 export const ctx = { lang: "he", user: { name: "", phone: "", address: "", bizId: "", logo: "" } };
 export const ABOUT = {
   title: "OBD Scanner Pro",
@@ -394,6 +394,28 @@ export function parseUdsDTCs(raw){
     out.push({ code, ft:rec.slice(4,6), status:st, active:!!(st&1), confirmed:!!(st&8) }); }
   return out;
 }
+
+// KWP2000 1A xx (Toyota / Lexus / many Asian cars) → { hex, text }
+export function parseKwpId(raw, id){
+  const h = elmHex(raw); const px = "5A"+id.toUpperCase(); if(!h.startsWith(px)) return null;
+  const data = h.slice(px.length); let txt = ""; for(let j=0;j+1<data.length;j+=2){ const c = parseInt(data.slice(j,j+2),16); if(c>=32&&c<=126) txt += String.fromCharCode(c); }
+  return { hex:data, text:txt.trim() };
+}
+// KWP2000 18 00 FF 00 → 58 nn [hi lo status]*nn
+export function parseKwpDTCs(raw){
+  const h = elmHex(raw); if(!h.startsWith("58")) return null;
+  const d = h.slice(4); const out = []; const seen = new Set();
+  for(let j=0; j+6<=d.length; j+=6){ const rec = d.slice(j,j+6); if(rec.startsWith("0000")) continue; const code = dtcFromHex(rec.slice(0,4)); if(seen.has(code)) continue; seen.add(code); const st = parseInt(rec.slice(4,6),16); out.push({ code, status:st, active:!!(st&0x40)||!!(st&1), confirmed:true }); }
+  return out;
+}
+// Toyota 13 → 53 [nn] [hi lo]*  (count byte present on some units)
+export function parseToyota13(raw){
+  const h = elmHex(raw); if(!h.startsWith("53")) return null;
+  let d = h.slice(2); const n = parseInt(d.slice(0,2),16); if(d.length >= 2 && (d.length-2) === n*4) d = d.slice(2);
+  const out = []; const seen = new Set();
+  for(let j=0; j+4<=d.length; j+=4){ const rec = d.slice(j,j+4); if(rec==="0000") continue; const code = dtcFromHex(rec); if(seen.has(code)) continue; seen.add(code); out.push({ code, active:true }); }
+  return out;
+}
 // KWP/UDS negative reply code → short text
 export function nrcText(raw){ const h = elmHex(raw); const m = /7F([0-9A-F]{2})([0-9A-F]{2})/.exec(h); if(!m) return ""; const N = { "11":"service not supported", "12":"sub-function not supported", "13":"bad length", "22":"conditions not correct", "31":"request out of range", "33":"security access denied", "7E":"not in this session", "7F":"not in this session" }; return `7F ${m[1]} ${m[2]}${N[m[2]]?" ("+N[m[2]]+")":""}`; }
 
@@ -403,7 +425,7 @@ export function makeDemoAdapter(){
   const mask = (base) => { let m=0; for(const p of sup){ const n=parseInt(p,16)-parseInt(base,16); if(n>=1&&n<=32) m |= (1<<(32-n)); } return ("41"+base+(m>>>0).toString(16).toUpperCase().padStart(8,"0")); };
   const hex = (n,len=2)=>Math.max(0,Math.round(n)).toString(16).toUpperCase().padStart(len,"0");
   let t0 = Date.now(); let cleared = false; let hdr = false; let sh = "7DF";
-  const ecuAct = { "7E0":{ name:"ENGINE ECU", sw:"89661-30M10", hw:"HW-0212", dtc:"" }, "7E1":{ name:"TRANSMISSION", sw:"89530-30E40", hw:"HW-0107", dtc:"" }, "720":{ name:"BODY CONTROL", sw:"BCM-4.12", hw:"B-03", dtc:"" }, "730":{ name:"AIRBAG SRS", sw:"SRS-2.0", hw:"S-11", dtc:"80010008" }, "740":{ name:"COMBINATION METER", sw:"83800-3T050", hw:"M-21", dtc:"" }, "750":{ name:"ABS/VSC", sw:"ABS-7.3", hw:"A-05", dtc:"40350009C1210008" }, "760":{ name:"POWER STEERING", sw:"EPS-1.8", hw:"E-02", dtc:"" }, "790":{ name:"GATEWAY", sw:"GW-3.1", hw:"G-01", dtc:"" } };
+  const ecuAct = { "7E0":{ name:"ENGINE ECU", sw:"89661-30M10", hw:"HW-0212", dtc:"" }, "7E1":{ name:"TRANSMISSION", sw:"89530-30E40", hw:"HW-0107", dtc:"" }, "720":{ name:"BODY CONTROL", sw:"BCM-4.12", hw:"B-03", dtc:"" }, "730":{ name:"AIRBAG SRS", sw:"SRS-2.0", hw:"S-11", dtc:"80010008", kwp:true }, "740":{ name:"COMBINATION METER", sw:"83800-3T050", hw:"M-21", dtc:"" }, "750":{ name:"ABS/VSC", sw:"ABS-7.3", hw:"A-05", dtc:"40350009C1210008" }, "760":{ name:"POWER STEERING", sw:"EPS-1.8", hw:"E-02", dtc:"" }, "790":{ name:"GATEWAY", sw:"GW-3.1", hw:"G-01", dtc:"" } };
   const asc = t => t.split("").map(c=>c.charCodeAt(0).toString(16).toUpperCase().padStart(2,"0")).join("");
   const vinFrames = () => { const bytes = ["49","02","01"].concat(vin.split("").map(c=>c.charCodeAt(0).toString(16).toUpperCase())); const out=["014"]; out.push("0:"+bytes.slice(0,6).join("")); let i=6,seq=1; while(i<bytes.length){ out.push(seq+":"+bytes.slice(i,i+7).join("").padEnd(14,"0")); i+=7; seq++; } return out.join("\r"); };
   const live = (pid) => { const s=(Date.now()-t0)/1000; const rpm=820+Math.sin(s/2)*60;
@@ -443,6 +465,7 @@ export function makeDemoAdapter(){
         if(c==="22F191") return wrap("62F191"+asc(e.hw));
         if(c==="22F187") return wrap("62F187"+asc(e.sw.split("-")[0]+"-0000"));
         if(c==="22F18C") return wrap("62F18C"+asc("SN"+sh+"0457"));
+        if(e.kwp){ if(c==="1902FF") return wrap("7F1911"); if(c==="1800FF00") return wrap("5801"+"800108"); if(c==="1A90") return wrap("5A90"+asc(vin)); if(/^22F1/.test(c)) return wrap("7F2211"); }
         if(c==="1902FF") return wrap("5902FF"+(cleared && (sh==="7E0") ? "" : e.dtc));
         if(c==="14FFFFFF"){ e.dtc=""; return wrap("54"); }
         return wrap("7F"+c.slice(0,2)+"11");
