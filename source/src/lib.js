@@ -125,7 +125,7 @@ export function openExt(url){
 
 
 // ═══ App context shared with non-React helpers (print/share) ═══
-export const APP_VERSION = "2.1.1";
+export const APP_VERSION = "2.2.0";
 export const ctx = { lang: "he", user: { name: "", phone: "", address: "", bizId: "", logo: "" } };
 export const ABOUT = {
   title: "OBD Scanner Pro",
@@ -254,9 +254,11 @@ export function parseFF(raw,pid){
 const B = (d,i)=>parseInt(d.slice(i*2,i*2+2),16);
 const S16 = (a,b) => { const v = a*256+b; return v>32767 ? v-65536 : v; };
 const trim = d => ((B(d,0)-128)*100/128).toFixed(1);
+const FUELTYPE = { 1:["בנזין","Petrol"], 2:["מתנול","Methanol"], 3:["אתנול","Ethanol"], 4:["דיזל","Diesel"], 5:["גפ\"מ","LPG"], 6:["גז טבעי","CNG"], 8:["חשמלי","Electric"], 17:["היברידי בנזין","Hybrid petrol"], 19:["היברידי דיזל","Hybrid diesel"], 20:["היברידי חשמלי","Hybrid electric"] };
+const OBDSTD = { 1:"OBD-II (CARB)", 2:"OBD (EPA)", 3:"OBD + OBD-II", 4:"OBD-I", 6:"EOBD (Europe)", 7:"EOBD + OBD-II", 9:"EOBD + OBD + OBD-II", 10:"JOBD (Japan)", 11:"JOBD + OBD-II", 12:"JOBD + EOBD", 13:"JOBD + EOBD + OBD-II", 17:"EMD", 33:"HD OBD" };
 const FUELSYS = { 1:["פתוחה (קר)","Open (cold)"], 2:["סגורה ✓","Closed ✓"], 4:["פתוחה (עומס/האטה)","Open (load/decel)"], 8:["פתוחה (תקלה)","Open (fault)"], 16:["סגורה (תקלה בחיישן)","Closed (sensor fault)"] };
 // groups: basic · fuel (mixture) · o2 (oxygen / A-F sensors) · emis (emissions & EVAP) · count (counters)
-export const LIVE_GROUPS = [["basic","בסיסי","Basic"],["fuel","תערובת ודלק","Mixture & fuel"],["o2","חיישני חמצן","O2 sensors"],["emis","פליטה ו-EVAP","Emissions & EVAP"],["count","מונים","Counters"]];
+export const LIVE_GROUPS = [["basic","בסיסי","Basic"],["fuel","תערובת ודלק","Mixture & fuel"],["o2","חיישני חמצן","O2 sensors"],["emis","פליטה ו-EVAP","Emissions & EVAP"],["count","מונים","Counters"],["more","נתונים נוספים","More data"]];
 export const LIVE_PIDS = [
   { pid:"0C", he:"סל\"ד", en:"RPM", unit:"rpm", f:d=>((B(d,0)*256+B(d,1))/4).toFixed(0) },
   { pid:"0D", he:"מהירות", en:"Speed", unit:"km/h", f:d=>String(B(d,0)) },
@@ -309,6 +311,43 @@ export const LIVE_PIDS = [
   { pid:"4E", g:"count", he:"דקות מאז מחיקה", en:"Min since clear", unit:"min", f:d=>String(B(d,0)*256+B(d,1)) },
   { pid:"21", g:"count", he:"ק\"מ עם נורית דולקת", en:"km with MIL on", unit:"km", f:d=>String(B(d,0)*256+B(d,1)) },
   { pid:"4D", g:"count", he:"דקות עם נורית", en:"Min with MIL", unit:"min", f:d=>String(B(d,0)*256+B(d,1)) },
+  // more data (shown only when the car reports them as supported)
+  { pid:"16", g:"o2", he:"O2 B1S3", en:"O2 B1S3", unit:"V", f:d=>(B(d,0)/200).toFixed(3) },
+  { pid:"17", g:"o2", he:"O2 B1S4", en:"O2 B1S4", unit:"V", f:d=>(B(d,0)/200).toFixed(3) },
+  { pid:"1A", g:"o2", he:"O2 B2S3", en:"O2 B2S3", unit:"V", f:d=>(B(d,0)/200).toFixed(3) },
+  { pid:"1B", g:"o2", he:"O2 B2S4", en:"O2 B2S4", unit:"V", f:d=>(B(d,0)/200).toFixed(3) },
+  { pid:"25", g:"o2", he:"A/F B1S2", en:"A/F B1S2", unit:"λ", f:d=>((B(d,0)*256+B(d,1))*2/65536).toFixed(3), f2:d=>((B(d,2)*256+B(d,3))*8/65536).toFixed(2)+" V" },
+  { pid:"29", g:"o2", he:"A/F B2S2", en:"A/F B2S2", unit:"λ", f:d=>((B(d,0)*256+B(d,1))*2/65536).toFixed(3), f2:d=>((B(d,2)*256+B(d,3))*8/65536).toFixed(2)+" V" },
+  { pid:"35", g:"o2", he:"A/F B1S2", en:"A/F B1S2", unit:"λ", f:d=>((B(d,0)*256+B(d,1))*2/65536).toFixed(3), f2:d=>((B(d,2)*256+B(d,3))/256-128).toFixed(2)+" mA" },
+  { pid:"39", g:"o2", he:"A/F B2S2", en:"A/F B2S2", unit:"λ", f:d=>((B(d,0)*256+B(d,1))*2/65536).toFixed(3), f2:d=>((B(d,2)*256+B(d,3))/256-128).toFixed(2)+" mA" },
+  { pid:"55", g:"o2", he:"תיקון O2 אחורי קצר B1", en:"Rear O2 STFT B1", unit:"%", f:trim },
+  { pid:"56", g:"o2", he:"תיקון O2 אחורי ארוך B1", en:"Rear O2 LTFT B1", unit:"%", f:trim },
+  { pid:"57", g:"o2", he:"תיקון O2 אחורי קצר B2", en:"Rear O2 STFT B2", unit:"%", f:trim },
+  { pid:"58", g:"o2", he:"תיקון O2 אחורי ארוך B2", en:"Rear O2 LTFT B2", unit:"%", f:trim },
+  { pid:"22", g:"fuel", he:"לחץ מסילה (יחסי)", en:"Rail pressure (rel.)", unit:"kPa", f:d=>((B(d,0)*256+B(d,1))*0.079).toFixed(0) },
+  { pid:"59", g:"fuel", he:"לחץ מסילה מוחלט", en:"Rail pressure (abs.)", unit:"bar", f:d=>((B(d,0)*256+B(d,1))*10/100).toFixed(0) },
+  { pid:"52", g:"fuel", he:"אחוז אתנול", en:"Ethanol", unit:"%", f:d=>(B(d,0)*100/255).toFixed(0) },
+  { pid:"5D", g:"fuel", he:"תזמון הזרקה", en:"Injection timing", unit:"°", f:d=>((B(d,0)*256+B(d,1))/128-210).toFixed(1) },
+  { pid:"A2", g:"fuel", he:"דלק לצילינדר", en:"Fuel per cylinder", unit:"mg", f:d=>((B(d,0)*256+B(d,1))/32).toFixed(1) },
+  { pid:"2D", g:"emis", he:"שגיאת EGR", en:"EGR error", unit:"%", f:d=>(B(d,0)*100/128-100).toFixed(0) },
+  { pid:"3E", g:"emis", he:"טמפ׳ קטליזטור B1S2", en:"Cat temp B1S2", unit:"°C", f:d=>((B(d,0)*256+B(d,1))/10-40).toFixed(0) },
+  { pid:"3F", g:"emis", he:"טמפ׳ קטליזטור B2S2", en:"Cat temp B2S2", unit:"°C", f:d=>((B(d,0)*256+B(d,1))/10-40).toFixed(0) },
+  { pid:"53", g:"emis", he:"לחץ EVAP מוחלט", en:"EVAP abs. pressure", unit:"kPa", f:d=>((B(d,0)*256+B(d,1))/200).toFixed(2) },
+  { pid:"54", g:"emis", he:"לחץ EVAP", en:"EVAP pressure", unit:"Pa", f:d=>String(B(d,0)*256+B(d,1)-32767) },
+  { pid:"47", g:"more", he:"מצערת B", en:"Throttle B", unit:"%", f:d=>(B(d,0)*100/255).toFixed(0) },
+  { pid:"48", g:"more", he:"מצערת C", en:"Throttle C", unit:"%", f:d=>(B(d,0)*100/255).toFixed(0) },
+  { pid:"4A", g:"more", he:"דוושת גז E", en:"Pedal E", unit:"%", f:d=>(B(d,0)*100/255).toFixed(0) },
+  { pid:"4B", g:"more", he:"דוושת גז F", en:"Pedal F", unit:"%", f:d=>(B(d,0)*100/255).toFixed(0) },
+  { pid:"5A", g:"more", he:"דוושה יחסית", en:"Rel. pedal", unit:"%", f:d=>(B(d,0)*100/255).toFixed(0) },
+  { pid:"61", g:"more", he:"מומנט מבוקש", en:"Demand torque", unit:"%", f:d=>String(B(d,0)-125) },
+  { pid:"62", g:"more", he:"מומנט בפועל", en:"Actual torque", unit:"%", f:d=>String(B(d,0)-125) },
+  { pid:"63", g:"more", he:"מומנט ייחוס", en:"Reference torque", unit:"Nm", f:d=>String(B(d,0)*256+B(d,1)) },
+  { pid:"8E", g:"more", he:"מומנט חיכוך", en:"Friction torque", unit:"%", f:d=>String(B(d,0)-125) },
+  { pid:"67", g:"more", he:"טמפ׳ מים (חיישן 1)", en:"Coolant (sensor 1)", unit:"°C", f:d=>String(B(d,1)-40) },
+  { pid:"68", g:"more", he:"טמפ׳ אוויר (חיישן 1)", en:"Intake air (sensor 1)", unit:"°C", f:d=>String(B(d,1)-40) },
+  { pid:"5B", g:"more", he:"סוללה היברידית", en:"Hybrid battery", unit:"%", f:d=>(B(d,0)*100/255).toFixed(0) },
+  { pid:"51", g:"more", he:"סוג דלק", en:"Fuel type", unit:"", txt:true, f:d=>{ const x = FUELTYPE[B(d,0)]; return x ? (ctx.lang==="en"?x[1]:x[0]) : String(B(d,0)); } },
+  { pid:"1C", g:"more", he:"תקן OBD", en:"OBD standard", unit:"", txt:true, f:d=>OBDSTD[B(d,0)] || String(B(d,0)) },
 ];
 const BASIC_FUEL = ["06","07","0B","10"];
 for(const p of LIVE_PIDS){ if(!p.g) p.g = BASIC_FUEL.includes(p.pid) ? "fuel" : "basic"; }
@@ -330,6 +369,36 @@ export function mode06Supported(raw, base){
   const n = parseInt(m.slice(4,12),16); const s = new Set();
   for(let i=0;i<32;i++) if(n & (1<<(31-i))) s.add((parseInt(base,16)+i+1));
   return s;
+}
+
+
+// ═══ Mode 06 — every on-board test with its limits (CAN) ═══
+const MID_NAMES = { 0x01:["חיישן O2 B1S1","O2 sensor B1S1"],0x02:["חיישן O2 B1S2","O2 sensor B1S2"],0x03:["חיישן O2 B1S3","O2 sensor B1S3"],0x04:["חיישן O2 B1S4","O2 sensor B1S4"],0x05:["חיישן O2 B2S1","O2 sensor B2S1"],0x06:["חיישן O2 B2S2","O2 sensor B2S2"],0x07:["חיישן O2 B2S3","O2 sensor B2S3"],0x08:["חיישן O2 B2S4","O2 sensor B2S4"],
+  0x21:["קטליזטור B1","Catalyst B1"],0x22:["קטליזטור B2","Catalyst B2"],0x23:["קטליזטור B3","Catalyst B3"],0x24:["קטליזטור B4","Catalyst B4"],
+  0x31:["EGR / VVT 1","EGR / VVT 1"],0x32:["EGR / VVT 2","EGR / VVT 2"],0x33:["EGR / VVT 3","EGR / VVT 3"],0x34:["EGR / VVT 4","EGR / VVT 4"],0x35:["VVT B1","VVT B1"],0x36:["VVT B2","VVT B2"],0x37:["VVT B3","VVT B3"],0x38:["VVT B4","VVT B4"],
+  0x39:["EVAP — דליפה 0.150\"","EVAP — 0.150\" leak"],0x3A:["EVAP — דליפה 0.090\"","EVAP — 0.090\" leak"],0x3B:["EVAP — דליפה 0.040\"","EVAP — 0.040\" leak"],0x3C:["EVAP — דליפה 0.020\"","EVAP — 0.020\" leak"],0x3D:["זרימת Purge","Purge flow"],
+  0x41:["חימום O2 B1S1","O2 heater B1S1"],0x42:["חימום O2 B1S2","O2 heater B1S2"],0x43:["חימום O2 B1S3","O2 heater B1S3"],0x44:["חימום O2 B1S4","O2 heater B1S4"],0x45:["חימום O2 B2S1","O2 heater B2S1"],0x46:["חימום O2 B2S2","O2 heater B2S2"],0x47:["חימום O2 B2S3","O2 heater B2S3"],0x48:["חימום O2 B2S4","O2 heater B2S4"],
+  0x61:["חימום קטליזטור B1","Heated catalyst B1"],0x62:["חימום קטליזטור B2","Heated catalyst B2"],0x71:["אוויר משני 1","Secondary air 1"],0x72:["אוויר משני 2","Secondary air 2"],
+  0x81:["מערכת דלק B1","Fuel system B1"],0x82:["מערכת דלק B2","Fuel system B2"],0x85:["לחץ טורבו B1","Boost B1"],0x86:["לחץ טורבו B2","Boost B2"],0x90:["NOx B1","NOx B1"],0x91:["NOx B2","NOx B2"],0x98:["קטליזטור NOx B1","NOx catalyst B1"],0x99:["קטליזטור NOx B2","NOx catalyst B2"],
+  0xA1:["פספוסים — כללי","Misfire — general"],0xB0:["מסנן חלקיקים B1","PM filter B1"],0xB1:["מסנן חלקיקים B2","PM filter B2"] };
+export function midName(mid){ if(mid>=0xA2 && mid<=0xAD) return ctx.lang==="en" ? `Misfire — cylinder ${mid-0xA1}` : `פספוסים — צילינדר ${mid-0xA1}`; const n = MID_NAMES[mid]; return n ? (ctx.lang==="en"?n[1]:n[0]) : `MID ${mid.toString(16).toUpperCase().padStart(2,"0")}`; }
+const TID_NAMES = { 0x01:["סף מעבר עשיר→רזה","Rich→lean threshold"],0x02:["סף מעבר רזה→עשיר","Lean→rich threshold"],0x03:["מתח נמוך לזמן מעבר","Low voltage for switch time"],0x04:["מתח גבוה לזמן מעבר","High voltage for switch time"],0x05:["זמן מעבר עשיר→רזה","Rich→lean switch time"],0x06:["זמן מעבר רזה→עשיר","Lean→rich switch time"],0x07:["מתח מינימלי","Minimum voltage"],0x08:["מתח מקסימלי","Maximum voltage"],0x09:["זמן בין מעברים","Time between transitions"],0x0A:["מחזור החיישן","Sensor period"],0x0B:["פספוסים — ממוצע 10 נסיעות","Misfires — 10-drive average"],0x0C:["פספוסים — נסיעה אחרונה","Misfires — last drive"] };
+export function tidName(mid, tid){ const n = TID_NAMES[tid]; const std = tid<=0x0A ? mid<=0x10 : (tid<=0x0C && mid>=0xA1 && mid<=0xAD); if(n && std) return ctx.lang==="en"?n[1]:n[0]; return (ctx.lang==="en" ? "Maker test " : "בדיקת יצרן ")+"TID "+tid.toString(16).toUpperCase().padStart(2,"0"); }
+// Unit-and-scaling IDs (SAE J1979 table) → [scale, unit, offset]; unknown IDs are shown raw. Pass/fail never depends on this.
+const UAS = { 0x01:[1,""],0x02:[0.1,""],0x03:[0.01,""],0x04:[0.001,""],0x05:[0.0000305,""],0x06:[0.000305,""],0x07:[0.25,"rpm"],0x08:[0.01,"km/h"],0x09:[1,"km/h"],0x0A:[0.122,"mV"],0x0B:[0.001,"V"],0x0C:[0.01,"V"],0x0D:[0.00390625,"mA"],0x0E:[0.001,"A"],0x0F:[0.01,"A"],
+  0x10:[1,"ms"],0x11:[100,"ms"],0x12:[1,"s"],0x13:[1,"mΩ"],0x14:[1,"Ω"],0x15:[1,"kΩ"],0x16:[0.1,"°C",-40],0x17:[0.01,"kPa"],0x18:[0.0117,"kPa"],0x19:[0.079,"kPa"],0x1A:[1,"kPa"],0x1B:[10,"kPa"],0x1C:[0.01,"°"],0x1D:[0.5,"°"],0x1E:[0.0000305,"λ"],0x1F:[0.05,"A/F"],
+  0x20:[0.0039062,""],0x21:[1,"mHz"],0x22:[1,"Hz"],0x23:[1,"kHz"],0x24:[1,""],0x25:[1,"km"],0x26:[0.1,"mV/ms"],0x27:[0.01,"g/s"],0x28:[1,"g/s"],0x29:[0.25,"Pa/s"],0x2A:[0.001,"kg/h"],0x2B:[1,""],0x2C:[0.01,"g/cyl"],0x2D:[0.01,"mg/str"],0x2F:[0.01,"%"],0x30:[0.001526,"%"],0x31:[0.001,"L"],0x34:[1,"min"],0x35:[10,"ms"],0x36:[0.01,"g"],0x37:[0.1,"g"],0x38:[1,"g"],
+  0x81:[1,""],0x82:[0.1,""],0x83:[0.01,""],0x84:[0.001,""],0x85:[0.0000305,""],0x86:[0.000305,""],0x8A:[0.122,"mV"],0x8B:[0.001,"V"],0x8C:[0.01,"V"],0x8D:[0.00390625,"mA"],0x8E:[0.001,"A"],0x90:[1,"ms"],0x96:[0.1,"°C"],0x9C:[0.01,"°"],0x9D:[0.5,"°"],0xA8:[1,"g/s"],0xA9:[0.25,"Pa/s"],0xAD:[0.01,"mg/str"],0xAE:[0.1,"mg/str"],0xAF:[0.01,"%"],0xB0:[0.003052,"%"],0xFC:[0.01,"kPa"],0xFD:[0.001,"kPa"],0xFE:[0.25,"Pa"] };
+const sgn = (u, v) => (u >= 0x80 && v > 32767) ? v-65536 : v;
+export function uasFmt(uas, raw){ const v = sgn(uas, raw); const u = UAS[uas]; if(!u) return { v:String(v), unit:"raw" }; const x = v*u[0] + (u[2]||0); const dec = u[0] >= 1 ? 0 : Math.min(4, Math.ceil(-Math.log10(u[0]))); return { v:x.toFixed(dec), unit:u[1] }; }
+// pass / fail / "just passed" (within 10% of a real limit)
+export function m06Judge(r){
+  const v = sgn(r.uas,r.val), lo = sgn(r.uas,r.min), hi = sgn(r.uas,r.max); const signed = r.uas >= 0x80;
+  const hasLo = signed ? lo > -32768 : lo > 0, hasHi = signed ? hi < 32767 : hi < 65535;
+  const pass = v >= lo && v <= hi; let near = false;
+  if(pass){ const span = (hasLo && hasHi) ? hi-lo : hasHi ? Math.abs(hi) : hasLo ? Math.abs(lo) : 0;
+    if(span > 0){ if(hasHi && (hi-v) <= span*0.1) near = true; if(hasLo && (v-lo) <= span*0.1) near = true; } }
+  return { pass, near, hasLo, hasHi, v, lo, hi };
 }
 
 // ═══ Demo adapter: answers like a real ELM327 so the scanner can be tried without a car ═══
@@ -421,13 +490,14 @@ export function nrcText(raw){ const h = elmHex(raw); const m = /7F([0-9A-F]{2})(
 
 export function makeDemoAdapter(){
   const vin = "JTDBR32E720123456";
-  const sup = ["01","03","04","05","06","07","08","09","0B","0C","0D","0E","0F","10","11","13","15","19","1C","1F","20","21","2E","2F","30","31","32","33","34","38","3C","3D","40","42","44","46","4E","5C"];
+  const sup = ["01","03","04","05","06","07","08","09","0B","0C","0D","0E","0F","10","11","13","15","19","1C","1F","20","21","2E","2F","30","31","32","33","34","38","3C","3D","40","42","44","45","46","47","49","4A","4C","4E","51","5A","5C","60","61","62","63","67"];
   const mask = (base) => { let m=0; for(const p of sup){ const n=parseInt(p,16)-parseInt(base,16); if(n>=1&&n<=32) m |= (1<<(32-n)); } return ("41"+base+(m>>>0).toString(16).toUpperCase().padStart(8,"0")); };
   const hex = (n,len=2)=>Math.max(0,Math.round(n)).toString(16).toUpperCase().padStart(len,"0");
   let t0 = Date.now(); let cleared = false; let hdr = false; let sh = "7DF";
   const ecuAct = { "7E0":{ name:"ENGINE ECU", sw:"89661-30M10", hw:"HW-0212", dtc:"" }, "7E1":{ name:"TRANSMISSION", sw:"89530-30E40", hw:"HW-0107", dtc:"" }, "720":{ name:"BODY CONTROL", sw:"BCM-4.12", hw:"B-03", dtc:"" }, "730":{ name:"AIRBAG SRS", sw:"SRS-2.0", hw:"S-11", dtc:"80010008", kwp:true }, "740":{ name:"COMBINATION METER", sw:"83800-3T050", hw:"M-21", dtc:"" }, "750":{ name:"ABS/VSC", sw:"ABS-7.3", hw:"A-05", dtc:"40350009C1210008" }, "760":{ name:"POWER STEERING", sw:"EPS-1.8", hw:"E-02", dtc:"" }, "790":{ name:"GATEWAY", sw:"GW-3.1", hw:"G-01", dtc:"" } };
   const asc = t => t.split("").map(c=>c.charCodeAt(0).toString(16).toUpperCase().padStart(2,"0")).join("");
   const vinFrames = () => { const bytes = ["49","02","01"].concat(vin.split("").map(c=>c.charCodeAt(0).toString(16).toUpperCase())); const out=["014"]; out.push("0:"+bytes.slice(0,6).join("")); let i=6,seq=1; while(i<bytes.length){ out.push(seq+":"+bytes.slice(i,i+7).join("").padEnd(14,"0")); i+=7; seq++; } return out.join("\r"); };
+  const pedal = () => { const s=(Date.now()-t0)/1000; return Math.max(0, Math.sin(s/1.5))*92; };
   const live = (pid) => { const s=(Date.now()-t0)/1000; const rpm=820+Math.sin(s/2)*60;
     switch(pid){ case "0C": return hex(rpm*4,4); case "0D": return "00"; case "05": return hex(88+40); case "42": return hex(14100+Math.sin(s)*80,4);
       case "04": return hex(22*2.55); case "11": return hex(15*2.55); case "06": return hex(128+Math.sin(s*3)*4); case "07": return hex(128+6);
@@ -436,7 +506,7 @@ export function makeDemoAdapter(){
       case "03": return "0200"; case "08": return hex(128-26+Math.sin(s*3)*3); case "09": return hex(128+3);
       case "34": case "38": return hex((1+Math.sin(s*2)*0.01)*32768,4)+"8000"; case "15": case "19": return hex(0.68*200)+"FF";
       case "2E": return hex(35*2.55); case "32": return "FFF0"; case "3C": case "3D": return hex((520+40)*10,4); case "44": return hex(32768,4);
-      case "46": return hex(24+40); case "31": return hex(1840,4); case "30": return hex(52); case "21": return "0000"; case "4E": return hex(2900,4);
+      case "46": return hex(24+40); case "45": return hex(14*2.55); case "47": case "49": return hex(pedal()*2.55); case "4A": return hex(pedal()*1.27); case "4C": return hex(14*2.55); case "5A": return hex(pedal()*2.55); case "51": return "01"; case "61": return hex(125+18); case "62": return hex(125+16); case "63": return hex(310,4); case "67": return "01"+hex(88+40); case "31": return hex(1840,4); case "30": return hex(52); case "21": return "0000"; case "4E": return hex(2900,4);
       default: return null; } };
   // mode 06 misfire records for 6 cylinders (cylinder 3 is misfiring)
   const m06 = (mid) => { const cyl = mid-0xA1; const cur = cyl===3 ? 37 : (cyl===5 ? 2 : 0), avg = cyl===3 ? 21 : 0;
@@ -471,13 +541,20 @@ export function makeDemoAdapter(){
         return wrap("7F"+c.slice(0,2)+"11");
       }
       if(c.startsWith("AT")) return "OK\r\r>";
-      if(/^01(00|20|40|60|80|A0)$/.test(c)) { const base=c.slice(2); return (["00","20","40"].includes(base) ? mask(base) : "NO DATA")+"\r\r>"; }
+      if(/^01(00|20|40|60|80|A0|C0|E0)$/.test(c)) { const base=c.slice(2); return (["00","20","40","60"].includes(base) ? mask(base) : "NO DATA")+"\r\r>"; }
       if(c==="0101") return (cleared ? "4101000765"+"00" : "410182076504")+"\r\r>";
       if(c==="03") return (cleared ? "4300" : "430201070300")+"\r\r>";
       if(c==="07") return (cleared ? "4700" : "47010420")+"\r\r>";
       if(c==="0A") return "4A00\r\r>";
       if(c==="04") { cleared = true; return "44\r\r>"; }
       if(c==="0902") return vinFrames()+"\r\r>";
+      if(c==="0600") return "460080000001\r\r>";
+      if(c==="0620") return "462080000001\r\r>";
+      if(c==="0640") return "4640C0000000\r\r>";
+      if(c==="0601") return "4601010B01C2012C01F4"+"010510005000000064"+"010610005F00000064"+"\r\r>";
+      if(c==="0621") return "46218224"+"00B5000000C0\r\r>";
+      if(c==="0641") return "46418114004B0000012C\r\r>";
+      if(c==="0642") return "4642811401400000012C\r\r>";
       if(c==="06A0") return "46A0FE000000\r\r>";
       if(/^06A[2-7]$/.test(c)) return m06(parseInt(c.slice(2),16))+"\r\r>";
       if(c==="020200") return (cleared ? "NO DATA" : "4202000107")+"\r\r>";
