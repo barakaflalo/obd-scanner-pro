@@ -1,4 +1,4 @@
-# 🔧 OBD Scanner Pro v2.3.0
+# 🔧 OBD Scanner Pro v2.4.0
 סורק OBD-II מקצועי לכל הרכבים — Barak Aflalo · [AppNest](https://barakaflalo.github.io/appnest)
 © 2026 All rights reserved
 

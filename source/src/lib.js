@@ -125,7 +125,7 @@ export function openExt(url){
 
 
 // ═══ App context shared with non-React helpers (print/share) ═══
-export const APP_VERSION = "2.3.0";
+export const APP_VERSION = "2.4.0";
 export const ctx = { lang: "he", user: { name: "", phone: "", address: "", bizId: "", logo: "" } };
 export const ABOUT = {
   title: "OBD Scanner Pro",
@@ -371,6 +371,29 @@ export function mode06Supported(raw, base){
   return s;
 }
 
+
+// ═══ VIN → maker, country, approximate model year ═══
+const WMI = { JTH:["Lexus","JP"],JTJ:["Lexus","JP"],JT:["Toyota","JP"],JN:["Nissan","JP"],JHM:["Honda","JP"],JH:["Honda","JP"],JMZ:["Mazda","JP"],JM:["Mazda","JP"],JF:["Subaru","JP"],JS:["Suzuki","JP"],JMB:["Mitsubishi","JP"],JMY:["Mitsubishi","JP"],JA:["Mitsubishi / Isuzu","JP"],JD:["Daihatsu","JP"],
+  KMH:["Hyundai","KR"],KM8:["Hyundai","KR"],KMF:["Hyundai","KR"],KN:["Kia","KR"],KL:["Chevrolet / Daewoo","KR"],KPT:["SsangYong","KR"],KPA:["SsangYong","KR"],
+  VF1:["Renault","FR"],VF3:["Peugeot","FR"],VF7:["Citroën","FR"],VR1:["DS","FR"],VR3:["Peugeot","FR"],VR7:["Citroën","FR"],VNK:["Toyota","FR"],VF6:["Renault Trucks","FR"],UU1:["Dacia","RO"],VSS:["SEAT","ES"],VSK:["Nissan","ES"],VS6:["Ford","ES"],VSX:["Opel","ES"],VS7:["Citroën","ES"],
+  WVW:["Volkswagen","DE"],WVG:["Volkswagen","DE"],WV1:["Volkswagen","DE"],WV2:["Volkswagen","DE"],WAU:["Audi","DE"],WA1:["Audi","DE"],TRU:["Audi","HU"],WBA:["BMW","DE"],WBS:["BMW M","DE"],WBY:["BMW i","DE"],WBX:["BMW","DE"],WMW:["MINI","DE"],WDB:["Mercedes-Benz","DE"],WDC:["Mercedes-Benz","DE"],WDD:["Mercedes-Benz","DE"],WDF:["Mercedes-Benz","DE"],W1K:["Mercedes-Benz","DE"],W1N:["Mercedes-Benz","DE"],W1V:["Mercedes-Benz","DE"],WME:["smart","DE"],WP0:["Porsche","DE"],WP1:["Porsche","DE"],W0L:["Opel","DE"],W0V:["Opel","DE"],WF0:["Ford","DE"],
+  TMB:["Škoda","CZ"],TMA:["Hyundai","CZ"],U5Y:["Kia","SK"],TSM:["Suzuki","HU"],NMT:["Toyota","TR"],NM0:["Ford","TR"],NLH:["Hyundai","TR"],NM4:["Tofaş / Fiat","TR"],
+  ZFA:["Fiat","IT"],ZAR:["Alfa Romeo","IT"],ZLA:["Lancia","IT"],ZFF:["Ferrari","IT"],ZHW:["Lamborghini","IT"],ZAM:["Maserati","IT"],ZCF:["Iveco","IT"],
+  SAL:["Land Rover","GB"],SAJ:["Jaguar","GB"],SAD:["Jaguar","GB"],SHH:["Honda","GB"],SJN:["Nissan","GB"],SB1:["Toyota","GB"],SCC:["Lotus","GB"],SCF:["Aston Martin","GB"],SCB:["Bentley","GB"],
+  YV1:["Volvo","SE"],YV4:["Volvo","SE"],YS3:["Saab","SE"],XTA:["Lada","RU"],
+  "1G1":["Chevrolet","US"],"1GC":["Chevrolet","US"],"1G":["GM","US"],"1FA":["Ford","US"],"1FT":["Ford","US"],"1FM":["Ford","US"],"1HG":["Honda","US"],"1N4":["Nissan","US"],"1C":["Chrysler / Dodge / Jeep","US"],"1J":["Jeep","US"],"2T":["Toyota","CA"],"2HG":["Honda","CA"],"3VW":["Volkswagen","MX"],"3N":["Nissan","MX"],"4T":["Toyota","US"],"5T":["Toyota","US"],"5NP":["Hyundai","US"],"5XY":["Kia","US"],"5YJ":["Tesla","US"],"7SA":["Tesla","US"],LRW:["Tesla","CN"],XP7:["Tesla","DE"],
+  LSJ:["MG","CN"],LGX:["BYD","CN"],LC0:["BYD","CN"],LB3:["Geely","CN"],L6T:["Geely","CN"],LVV:["Chery","CN"],LVT:["Chery","CN"],LGW:["Great Wall","CN"],LJ1:["NIO","CN"],L1N:["XPeng","CN"],LYV:["Volvo","CN"],LPS:["Polestar","CN"],LFV:["Volkswagen","CN"],
+  MAL:["Hyundai","IN"],MA3:["Suzuki","IN"],MAT:["Tata","IN"],MR0:["Toyota","TH"],MMB:["Mitsubishi","TH"],MHF:["Toyota","ID"],MNT:["Nissan","TH"],"6T1":["Toyota","AU"],"9BW":["Volkswagen","BR"] };
+const COUNTRY = { JP:["יפן","Japan"],KR:["קוריאה","Korea"],FR:["צרפת","France"],RO:["רומניה","Romania"],ES:["ספרד","Spain"],DE:["גרמניה","Germany"],HU:["הונגריה","Hungary"],CZ:["צ'כיה","Czechia"],SK:["סלובקיה","Slovakia"],TR:["טורקיה","Turkey"],IT:["איטליה","Italy"],GB:["בריטניה","UK"],SE:["שוודיה","Sweden"],RU:["רוסיה","Russia"],US:["ארה\"ב","USA"],CA:["קנדה","Canada"],MX:["מקסיקו","Mexico"],CN:["סין","China"],IN:["הודו","India"],TH:["תאילנד","Thailand"],ID:["אינדונזיה","Indonesia"],AU:["אוסטרליה","Australia"],BR:["ברזיל","Brazil"] };
+const FIRST = { J:"JP",K:"KR",L:"CN",W:"DE",Z:"IT",Y:"SE",X:"RU","1":"US","4":"US","5":"US","2":"CA","3":"MX","6":"AU","9":"BR" };
+const YEAR_CODES = "ABCDEFGHJKLMNPRSTVWXY123456789";
+export function decodeVin(vin){
+  const v = String(vin||"").toUpperCase().replace(/[^A-Z0-9]/g,""); if(v.length !== 17 || /[IOQ]/.test(v)) return null;
+  const m = WMI[v.slice(0,3)] || WMI[v.slice(0,2)]; const cc = m ? m[1] : FIRST[v[0]]; const c = cc && COUNTRY[cc];
+  const i = YEAR_CODES.indexOf(v[9]); let year = null;
+  if(i >= 0){ const now = new Date().getFullYear()+1; year = 2010+i <= now ? 2010+i : 1980+i; }
+  return { wmi:v.slice(0,3), make: m ? m[0] : "", country: c ? (ctx.lang==="en" ? c[1] : c[0]) : "", year };
+}
 
 // ═══ Mode 06 — every on-board test with its limits (CAN) ═══
 const MID_NAMES = { 0x01:["חיישן O2 B1S1","O2 sensor B1S1"],0x02:["חיישן O2 B1S2","O2 sensor B1S2"],0x03:["חיישן O2 B1S3","O2 sensor B1S3"],0x04:["חיישן O2 B1S4","O2 sensor B1S4"],0x05:["חיישן O2 B2S1","O2 sensor B2S1"],0x06:["חיישן O2 B2S2","O2 sensor B2S2"],0x07:["חיישן O2 B2S3","O2 sensor B2S3"],0x08:["חיישן O2 B2S4","O2 sensor B2S4"],

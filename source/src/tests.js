@@ -193,4 +193,59 @@ export const GUIDED_TESTS = [
       out.push(L("הבדיקה נעצרה לפני שהמנוע התחמם — אין מסקנה.","The test stopped before the engine warmed up — no conclusion.")); return { lvl:"na", lines:out };
     }
   },
+  {
+    id:"maf", ic:"🌬️", he:"בדיקת חיישן MAF", en:"MAF sensor check",
+    dhe:"בודק אם כמות האוויר שה-MAF מודד הגיונית לנפח המנוע — MAF מלוכלך או פגום מעוות את כל התערובת.",
+    den:"Checks whether the air mass the MAF reports makes sense for the engine size — a dirty or faulty MAF skews the whole mixture.",
+    steps:[
+      { k:"ask", key:"engL", he:"נפח המנוע בליטרים (למשל 1.6 או 3.0)", en:"Engine size in litres (e.g. 1.6 or 3.0)", min:0.6, max:8 },
+      { k:"do", he:"מנוע חם בסרק, מיזוג וצרכנים כבויים.", en:"Warm engine at idle, A/C and loads off." },
+      { k:"watch", key:"idle", pids:["10","0C","0B","0F","05","33"], secs:10, he:"מודד בסרק...", en:"Measuring at idle..." },
+      { k:"do", he:"החזק 2500 סל\"ד יציב.", en:"Hold a steady 2500 rpm." },
+      { k:"watch", key:"rev", pids:["10","0C","0B","0F","05","33"], secs:10, he:"מודד ב-2500 סל\"ד...", en:"Measuring at 2500 rpm..." },
+    ],
+    judge(r, L){
+      const Ls = r.engL, out = [], lv = [];
+      if(!Ls) return { lvl:"na", lines:[L("לא הוזן נפח מנוע.","No engine size entered.")] };
+      if(avg(r.idle,"10")===null) return { lvl:"na", lines:[L("הרכב לא מסר נתון MAF (יש רכבים שמודדים רק לחץ סעפת — MAP).","The car didn't report MAF (some cars only measure manifold pressure — MAP).")] };
+      for(const [k,he,en,lo,hi] of [["idle","בסרק","at idle",0.8,1.8],["rev","ב-2500 סל\"ד","at 2500 rpm",2.2,5.5]]){
+        const maf = avg(tail(r[k]),"10"), rpm = avg(tail(r[k]),"0C"), map = avg(tail(r[k]),"0B"), iat = avg(tail(r[k]),"0F"); if(maf===null || rpm===null) continue;
+        if(k==="rev" && rpm<2000){ out.push(L(`הסל"ד היה רק ${rpm.toFixed(0)} — השלב השני לא נשפט.`,`Only ${rpm.toFixed(0)} rpm — the second stage wasn't judged.`)); continue; }
+        if(map!==null && map>15){ // enough data for a real calculation: volumetric efficiency against manifold density
+          const rho = 1.2*(map/101.3)*(293/((iat??20)+273)); const ve = maf/(Ls*rpm/120*rho)*100; const l = ve>=60 && ve<=105 ? "ok" : (ve>=50 && ve<=115 ? "warn" : "bad"); lv.push(l);
+          out.push(L(`${he}: ${ltr(maf.toFixed(1)+" g/s")} · יעילות נפחית מחושבת ${ltr(ve.toFixed(0)+"%")} — `+(l==="ok"?"הגיוני ✓":ve<60?"נמוך: ה-MAF מודד פחות מדי (מלוכלך) או דליפת אוויר אחריו":"גבוה: ה-MAF מודד יותר מדי"),`${en}: ${maf.toFixed(1)} g/s · calculated volumetric efficiency ${ve.toFixed(0)}% — `+(l==="ok"?"plausible ✓":ve<60?"low: the MAF under-reads (dirty) or air leaks in after it":"high: the MAF over-reads")));
+        } else { const per = maf/Ls; const l = per>=lo && per<=hi ? "ok" : (per>=lo*0.8 && per<=hi*1.2 ? "warn" : "bad"); lv.push(l);
+          out.push(L(`${he}: ${ltr(maf.toFixed(1)+" g/s")} = ${ltr(per.toFixed(2))} לליטר (צפוי בערך ${ltr(lo+"–"+hi)}) — `+(l==="ok"?"הגיוני ✓":per<lo?"נמוך: MAF מלוכלך או דליפת אוויר אחריו":"גבוה: ה-MAF מודד יותר מדי, או עומס על המנוע"),`${en}: ${maf.toFixed(1)} g/s = ${per.toFixed(2)} per litre (roughly ${lo}–${hi} expected) — `+(l==="ok"?"plausible ✓":per<lo?"low: dirty MAF or an air leak after it":"high: the MAF over-reads, or the engine is loaded"))); }
+      }
+      const ect = avg(r.idle,"05"); if(ect!==null && ect<70) out.push(L("המנוע היה קר — סרק גבוה מעלה את הקריאה. חזור עם מנוע חם.","The engine was cold — fast idle raises the reading. Repeat when warm."));
+      const baro = avg(r.idle,"33"); if(baro!==null && baro<92) out.push(L(`בגובה (${baro.toFixed(0)} kPa) האוויר דליל, אז קריאה מעט נמוכה היא תקינה.`,`At altitude (${baro.toFixed(0)} kPa) the air is thinner, so a slightly low reading is normal.`));
+      out.push(L("זו בדיקת סבירות, לא כיול. אם התוצאה חריגה: נקה את ה-MAF בספריי ייעודי ובדוק את מסנן האוויר והצנרת.","This is a plausibility check, not a calibration. If it's off: clean the MAF with proper spray and check the air filter and ducting."));
+      return { lvl:worst(lv), lines:out };
+    }
+  },
+  {
+    id:"balance", ic:"⚖️", he:"איזון צילינדרים (פספוסים)", en:"Cylinder balance (misfires)",
+    dhe:"קורא את מונה הפספוסים של המחשב לפני ואחרי דקה של סרק וסל\"ד, ומראה איזה צילינדר מפספס עכשיו.",
+    den:"Reads the ECU's misfire counters before and after a minute of idle and revs, and shows which cylinder is misfiring right now.",
+    steps:[
+      { k:"do", he:"מנוע חם בסרק.", en:"Warm engine at idle." },
+      { k:"run", key:"m0", fn:"misfire", he:"קורא את מונה הפספוסים...", en:"Reading the misfire counters..." },
+      { k:"watch", key:"idle", pids:["0C","05","04"], secs:40, he:"סרק — המחשב סופר פספוסים...", en:"Idle — the ECU is counting misfires..." },
+      { k:"do", he:"החזק 2500 סל\"ד יציב.", en:"Hold a steady 2500 rpm." },
+      { k:"watch", key:"rev", pids:["0C","05","04"], secs:20, he:"2500 סל\"ד — סופר...", en:"2500 rpm — counting..." },
+      { k:"run", key:"m1", fn:"misfire", he:"קורא שוב את המונה...", en:"Reading the counters again..." },
+    ],
+    judge(r, L){
+      const a = r.m0, b = r.m1;
+      if(!Array.isArray(a) || !Array.isArray(b) || !b.length) return { lvl:"na", lines:[L("הרכב לא מדווח ספירת פספוסים לפי צילינדר (Mode 06), או שהוא לא CAN.","The car doesn't report per-cylinder misfire counts (Mode 06), or isn't CAN.")] };
+      const d = b.map(x=>{ const p = a.find(y=>y.cyl===x.cyl); const now = x.cur||0, was = p ? (p.cur||0) : 0; return { cyl:x.cyl, n: now>=was ? now-was : now, avg:x.avg||0 }; });
+      const tot = d.reduce((s,x)=>s+x.n,0); const out = [L(`פספוסים בזמן הבדיקה: ${ltr(d.map(x=>"#"+x.cyl+"="+x.n).join("  "))}`,`Misfires during the test: ${d.map(x=>"#"+x.cyl+"="+x.n).join("  ")}`)];
+      const hist = d.filter(x=>x.avg>0); if(hist.length) out.push(L(`ממוצע 10 נסיעות אחרונות: ${ltr(hist.map(x=>"#"+x.cyl+"="+x.avg).join("  "))}`,`10-drive average: ${hist.map(x=>"#"+x.cyl+"="+x.avg).join("  ")}`));
+      if(tot===0){ out.push(L("אין פספוסים — כל הצילינדרים עובדים שווה.","No misfires — all cylinders are pulling evenly.")); return { lvl: hist.length ? "warn" : "ok", lines: hist.length ? [...out, L("אבל בנסיעות קודמות נספרו פספוסים — התקלה מופיעה רק בתנאים מסוימים (קור, עומס).","But earlier drives did count misfires — the fault only shows in certain conditions (cold, load).")] : out }; }
+      const top = [...d].sort((x,y)=>y.n-x.n)[0]; const single = top.n >= tot*0.7;
+      if(single) out.push(L(`רוב הפספוסים בצילינדר ${top.cyl} → החלף מקום בין הסליל/המצת שלו לבין צילינדר אחר ועשה שוב את הבדיקה. אם הפספוס עבר איתו — מצאת את החלק. אם נשאר — מזרק או דחיסה.`,`Most misfires are on cylinder ${top.cyl} → swap its coil/plug with another cylinder and rerun the test. If the misfire moves with it — that's the part. If it stays — injector or compression.`));
+      else out.push(L("הפספוסים מפוזרים בין כמה צילינדרים → סיבה משותפת: תערובת (דליפת ואקום, לחץ דלק), מצתים שחוקים או דלק גרוע.","Misfires are spread over several cylinders → a shared cause: mixture (vacuum leak, fuel pressure), worn plugs or bad fuel."));
+      return { lvl: tot<=3 ? "warn" : "bad", lines:out };
+    }
+  },
 ];
