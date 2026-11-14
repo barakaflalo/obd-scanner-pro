@@ -125,7 +125,7 @@ export function openExt(url){
 
 
 // ═══ App context shared with non-React helpers (print/share) ═══
-export const APP_VERSION = "2.6.0";
+export const APP_VERSION = "2.8.0";
 export const ctx = { lang: "he", user: { name: "", phone: "", address: "", bizId: "", logo: "" } };
 export const ABOUT = {
   title: "OBD Scanner Pro",
@@ -527,6 +527,55 @@ export function parseUdsDid(raw, did){
   let txt = ""; for(let j=0;j+1<data.length;j+=2){ const c = parseInt(data.slice(j,j+2),16); if(c>=32&&c<=126) txt += String.fromCharCode(c); }
   return { hex:data, text:txt.trim() };
 }
+// ═══ Maker-specific data packs (lazy-loaded; data from the open OBDb project, CC BY-SA 4.0) ═══
+const mkP = (he,en,re,key) => ({ he, en, re, load: MK_LOAD[key] });
+const MK_LOAD = { toyota:()=>import("./maker/toyota.js"), vag:()=>import("./maker/vag.js"), hk:()=>import("./maker/hk.js"), ford:()=>import("./maker/ford.js"), mazda:()=>import("./maker/mazda.js"), gm:()=>import("./maker/gm.js"), nissan:()=>import("./maker/nissan.js"), renault:()=>import("./maker/renault.js"), stellantis:()=>import("./maker/stellantis.js"), honda:()=>import("./maker/honda.js"), mitsubishi:()=>import("./maker/mitsubishi.js"), subaru:()=>import("./maker/subaru.js"), volvo:()=>import("./maker/volvo.js"), jlr:()=>import("./maker/jlr.js"), mg:()=>import("./maker/mg.js"), byd:()=>import("./maker/byd.js") };
+export const MAKER_PACKS = {
+  toyota: mkP("טויוטה / לקסוס / דייהטסו","Toyota / Lexus / Daihatsu",/toyota|lexus|daihatsu|טויוטה|לקסוס|דייהטסו/,"toyota"),
+  vag: mkP("פולקסווגן / אאודי / סקודה / סיאט / פורשה","VW / Audi / Škoda / SEAT / Porsche",/volkswagen|audi|skoda|škoda|seat|cupra|porsche|פולקסווגן|אאודי|סקודה|סיאט|קופרה|פורשה/,"vag"),
+  hk: mkP("יונדאי / קיה / ג'נסיס","Hyundai / Kia / Genesis",/hyundai|kia|genesis|יונדאי|קיה|ג'נסיס/,"hk"),
+  ford: mkP("פורד / לינקולן","Ford / Lincoln",/ford|lincoln|פורד|לינקולן/,"ford"),
+  mazda: mkP("מאזדה","Mazda",/mazda|מאזדה|מזדה/,"mazda"),
+  gm: mkP("שברולט / GMC / ביואיק / קדילק","Chevrolet / GMC / Buick / Cadillac",/chevrolet|\bgmc?\b|buick|cadillac|שברולט|ביואיק|קדילק/,"gm"),
+  nissan: mkP("ניסאן / אינפיניטי","Nissan / Infiniti",/nissan|infiniti|ניסאן|אינפיניטי/,"nissan"),
+  renault: mkP("רנו / דאצ'יה","Renault / Dacia",/renault|dacia|רנו|דאצ/,"renault"),
+  stellantis: mkP("פיג'ו / סיטרואן / פיאט / ג'יפ / אלפא","Peugeot / Citroën / Fiat / Jeep / Alfa",/peugeot|citro|fiat|jeep|dodge|chrysler|\bram\b|alfa|פיג'ו|פז'ו|סיטרואן|פיאט|ג'יפ|דודג|קרייזלר|אלפא/,"stellantis"),
+  honda: mkP("הונדה / אקורה","Honda / Acura",/honda|acura|הונדה|אקורה/,"honda"),
+  mitsubishi: mkP("מיצובישי","Mitsubishi",/mitsubishi|מיצובישי/,"mitsubishi"),
+  subaru: mkP("סובארו","Subaru",/subaru|סובארו/,"subaru"),
+  volvo: mkP("וולוו / פולסטאר","Volvo / Polestar",/volvo|polestar|וולוו|פולסטאר/,"volvo"),
+  jlr: mkP("יגואר / לנד רובר","Jaguar / Land Rover",/jaguar|land.?rover|יגואר|לנד/,"jlr"),
+  mg: mkP("MG","MG",/\bmg\b|אם.?ג'י/,"mg"),
+  byd: mkP("BYD","BYD",/\bbyd\b|בי.?ו?וי.?די/,"byd"),
+};
+export function packForMake(make){ const m = String(make||"").toLowerCase(); if(!m) return ""; for(const k of Object.keys(MAKER_PACKS)) if(MAKER_PACKS[k].re.test(m)) return k; return ""; }
+export const MK_ECUS = { "7E0":["⚙️","מנוע","Engine"], "7E1":["🔄","תיבת הילוכים","Transmission"], "DA10":["⚙️","מנוע","Engine"], "DA18":["🔄","תיבת הילוכים","Transmission"],
+  toyota: { "7E2":["🔋","מערכת היברידית","Hybrid system"], "7E3":["🔋","סוללת היברידי","HV battery"], "7B0":["🛞","ABS / בלמים","ABS / brakes"], "7C0":["🎛️","לוח שעונים","Instrument cluster"], "7C4":["❄️","מיזוג אוויר","Air conditioning"] } };
+export const MK_PATHS = { Engine:["⚙️","מנוע"], Fuel:["⛽","דלק"], Transmission:["🔄","תיבת הילוכים"], Battery:["🔋","סוללה / חשמל"], Electrical:["🔌","חשמל"], Tires:["🛞","צמיגים"], Movement:["🚗","תנועה ומהירות"], Brakes:["🛑","בלמים"], Climate:["❄️","מיזוג"], Control:["🎮","בקרה והיגוי"], "Cruise control":["🛣️","בקרת שיוט"], DTCs:["⚠️","קודי תקלה"], Details:["ℹ️","פרטים"], Doors:["🚪","דלתות"], Drivetrain:["⚙️","הנעה"], ECU:["📟","מחשב"], Fluids:["💧","נוזלים"], Lights:["💡","תאורה"], Orientation:["🧭","חיישני תנועה"], Seatbelts:["🪢","חגורות"], Stats:["📊","סטטיסטיקה"], Trips:["🧮","נסיעות ומונים"], Clocks:["🕒","שעון"], GPS:["📍","מיקום"], Emissions:["🌫️","פליטות"], Windows:["🪟","חלונות"], Keys:["🔑","מפתחות"], Suspension:["🛞","מתלים"], Other:["📦","אחר"] };
+const MK_UNITS = { celsius:"°C", fahrenheit:"°F", percent:"%", volts:"V", rpm:"rpm", kilometersPerHour:"km/h", kilopascal:"kPa", bars:"bar", psi:"psi", amps:"A", milliamps:"mA", ohms:"Ω", milliohms:"mΩ", megaohms:"MΩ", kilometers:"km", meters:"m", millimeters:"mm", seconds:"s", milliseconds:"ms", minutes:"min", hours:"h", degrees:"°", newtonMeters:"Nm", kilowatts:"kW", watts:"W", gramsPerSecond:"g/s", liters:"L", gallons:"gal", ampereHours:"Ah", hertz:"Hz", gravity:"g", metersPerSecondSquared:"m/s²", centimeters:"cm", kiloohms:"kΩ", kilowattHours:"kWh", kilowattHoursPer100Miles:"kWh/100mi", miles:"mi", millivolts:"mV", radians:"rad", gramsPerLiter:"g/L", kilogramsPerHour:"kg/h", metersPerSecond:"m/s" };
+// reply to service 21/22 → hex string of the data bytes (after the echoed id), or null when the ECU refused / didn't answer
+export function mkData(raw, svc, pid){
+  const h = elmHex(raw).replace(/[^0-9A-F]/g,""); const px = (svc==="21" ? "61" : "62") + pid.toUpperCase(); const i = h.indexOf(px);
+  if(i<0 || i>4 || i%2) return null; return h.slice(i+px.length);
+}
+// decode one signal from the data hex → { v, txt, unit, bad } or null when the reply is too short / value marked invalid
+export function mkDecode(data, g){
+  const b = g.b||0, l = g.l; if(!data || data.length*4 < b+l || l>32) return null;
+  let raw = 0; for(let i=b;i<b+l;i++){ const byte = parseInt(data.substr((i>>3)*2,2),16); raw = raw*2 + ((byte>>(7-(i&7)))&1); }
+  if(g.s && l>1 && raw >= Math.pow(2,l-1)) raw -= Math.pow(2,l);
+  const v = raw*(g.m===undefined?1:g.m)/(g.d===undefined?1:g.d) + (g.a||0);
+  if((g.nh!==undefined && v>=g.nh) || (g.nl!==undefined && v<=g.nl)) return null;
+  const u = g.u||"";
+  if(g.map){ const t = g.map[String(raw)]; return { v, txt: t!==undefined ? String(t) : String(raw), unit:"", bad: t===undefined }; }
+  if(u==="offon" || u==="onoff"){ const on = u==="offon" ? raw!==0 : raw===0; return { v:on?1:0, txt:on?"ON":"OFF", unit:"", bool:true, bad:raw>1 }; }
+  if(u==="noyes" || u==="yesno"){ const y = u==="noyes" ? raw!==0 : raw===0; return { v:y?1:0, txt:y?"✔":"✖", unit:"", bool:true, bad:raw>1 }; }
+  if(u==="hex") return { v:raw, txt:"0x"+raw.toString(16).toUpperCase(), unit:"", bad:false };
+  const span = Math.max(1e-9, Math.abs(g.hi===undefined?0:g.hi)*0.002);
+  const bad = (g.hi!==undefined && v>g.hi+span) || (g.lo!==undefined && v<g.lo-span);
+  if(u==="liters" && Math.abs(v)<0.01 && v!==0){ const ml = v*1000; return { v:ml, txt: ml.toPrecision(3), unit:"mL", bad }; }
+  const av = Math.abs(v); const txt = Number.isInteger(v) ? String(v) : av>=1000 ? String(Math.round(v)) : av>=100 ? v.toFixed(0) : av>=10 ? v.toFixed(1) : av>=0.01 ? v.toFixed(2) : v.toPrecision(2);
+  return { v, txt, unit: MK_UNITS[u]||"", bad };
+}
 const DTC_LET = ["P","C","B","U"];
 export function dtcFromHex(h4){ const b0 = parseInt(h4.slice(0,2),16); return DTC_LET[b0>>6] + ((b0>>4)&3) + h4.slice(1,4).toUpperCase(); }
 // UDS 19 02 FF → [{ code, status, confirmed, active }]
@@ -613,6 +662,12 @@ export function makeDemoAdapter(){
         if(e.kwp){ if(c==="1902FF") return wrap("7F1911"); if(c==="1800FF00") return wrap("5801"+"800108"); if(c==="1A90") return wrap("5A90"+asc(vin)); if(/^22F1/.test(c)) return wrap("7F2211"); }
         if(c==="1902FF") return wrap("5902FF"+(cleared && (sh==="7E0") ? "" : e.dtc));
         if(c==="14FFFFFF"){ e.dtc=""; return wrap("54"); }
+        if(sh==="7E0" && /^21[0-9A-F]{2}$/.test(c)){ const s=(Date.now()-t0)/1000; const w = Math.sin(s/2);
+          const D = { "01": hex(22*2.55)+"000000", "03": "0000"+hex(104+w*3)+hex(100)+"0000", "05": hex(88+40)+"00"+hex(5600+w*40,4)+hex(5200,4),
+            "3C": hex(4000+w*120,4)+hex(2900+w*90,4)+hex(69)+"00", "45": "00"+hex(33)+"40"+"01"+"00"+"00"+"00"+"02"+"00", "82": hex((78+40)*256,4)+hex((82+40)*256,4),
+            "28": "02D45800", "10": hex(470+w*20,4), "0E": hex((9+64)*2), "E4": hex(2.9*1275/163) }[c.slice(2)];
+          return wrap(D ? "61"+c.slice(2)+D : "7F2112"); }
+        if(sh==="7E1" && c==="2182") return wrap("6182"+hex((76+40)*256,4)+hex((80+40)*256,4));
         return wrap("7F"+c.slice(0,2)+"11");
       }
       if(c.startsWith("AT")) return "OK\r\r>";

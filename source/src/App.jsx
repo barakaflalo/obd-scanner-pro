@@ -10,6 +10,7 @@ import { CODES_DB, CAR_MODELS, CAR_MAKES, SYMPTOMS, SENSOR_REF, WIRE_TYPES, WIRE
 import { CODES_EN, SAFE_EN, SYMPTOMS_EN, SENSORS_EN, WIRE_TYPES_EN, WIRE_COLORS_EN, CONV_CAT_EN, BATTERY_EN } from "./data_en.js";
 import { APP_VERSION, ABOUT, ctx, L, uid, esc, loadData, saveData, deleteData, resizeImage, openExt, toast, doPrint, shareText, shareWhatsApp, elmLines, protoName, isCanProto, parsePID, parseDTCs, parseVIN, decodeReadiness, parseSupported, parseFF, LIVE_PIDS, LIVE_GROUPS, pidsOfGroup, parsePIDAll, mergeReadiness, parseMode06, mode06Supported, makeDemoAdapter, fmtPlate, ECUS, ecusWide, UDS_DIDS, parseUdsDid, parseUdsDTCs, nrcText, parseKwpId, parseKwpDTCs, parseToyota13, midName, tidName, uasFmt, m06Judge, decodeVin, parseMode09, ECU_PROFILES, profileForMake, ecusWideFor, ECUS29, ecus29Wide } from "./lib.js";
 import { GUIDED_TESTS } from "./tests.js";
+import { MAKER_PACKS, MK_PATHS, MK_ECUS, packForMake, mkData, mkDecode } from "./lib.js";
 import { ppScore, ppGradeText, PP_MANUAL } from "./prepurchase.js";
 import { S, THEMES, THEME_ORDER, applyTheme } from "./theme.js";
 import { T } from "./i18n.js";
@@ -790,6 +791,7 @@ export default function App(){
   const [ppOpen,setPpOpen] = useState(false); const [ppBusy,setPpBusy] = useState(false); const [ppStep,setPpStep] = useState(""); const [ppLive,setPpLive] = useState(null); const [ppDone,setPpDone] = useState(0); const [ppForm,setPpForm] = useState({ dash:"", manual:{}, note:"" });
   const [ecuProf,setEcuProf] = useState("auto");
   const [scanInfo,setScanInfo] = useState(null);
+  const [mkPack,setMkPack] = useState(null); const [mkSel,setMkSel] = useState("auto"); const [mkEcu,setMkEcu] = useState(""); const [mkSup,setMkSup] = useState({}); const [mkVals,setMkVals] = useState({}); const [mkProg,setMkProg] = useState(""); const [mkQ,setMkQ] = useState(""); const [mkAll,setMkAll] = useState(false); const [mkAuto,setMkAuto] = useState(false); const mkAutoRef = useRef(false); const mkStop = useRef(false);
   const [scanSub,setScanSub] = useState("conn"); const [scanHist,setScanHist] = useState([]); const [histSel,setHistSel] = useState([]); const [lastAdp,setLastAdp] = useState(null);
   const [m06Res,setM06Res] = useState(null); const [m06All,setM06All] = useState(false); const [testRes,setTestRes] = useState({}); const [testOpen,setTestOpen] = useState("");
   const [serialBaud,setSerialBaud] = useState("38400"); const [supOpen,setSupOpen] = useState(false);
@@ -1046,7 +1048,7 @@ export default function App(){
     { name:"OBDLink", svc:"0000fef1-0000-1000-8000-00805f9b34fb", tx:"0000fef2-0000-1000-8000-00805f9b34fb", rx:"0000fef2-0000-1000-8000-00805f9b34fb" },
   ];
   const slog = m => setScanLog(p=>[...p.slice(-299), m]);
-  function resetScan(){ setPpLive(null); setPpDone(0); setPpForm({ dash:"", manual:{}, note:"" }); setScanInfo(null); driveRef.current.on = false; setDriveOn(false); setDriveSum(null); setM06Res(null); setTestRes({}); setEcuList(null); setEcuDet({}); setEcuProg(""); setEcuOpen(""); perfRef.current = { armed:false, start:0, time:null }; tripRef.current = { on:false, start:0, last:0, km:0, fuelL:0 }; setScanMis(null); setScanOdo(null); liveHist.current = {}; setLiveSel(""); recRef.current=false; setRecOn(false); setScanCodes(null); setScanVin(""); setScanReady(null); setScanFF(null); setScanLive({}); scanSup.current=null; liveRef.current=false; setLiveOn(false); }
+  function resetScan(){ mkAutoRef.current = false; setMkAuto(false); setMkPack(null); setMkSel("auto"); setMkSup({}); setMkVals({}); setMkProg(""); setMkEcu(""); setPpLive(null); setPpDone(0); setPpForm({ dash:"", manual:{}, note:"" }); setScanInfo(null); driveRef.current.on = false; setDriveOn(false); setDriveSum(null); setM06Res(null); setTestRes({}); setEcuList(null); setEcuDet({}); setEcuProg(""); setEcuOpen(""); perfRef.current = { armed:false, start:0, time:null }; tripRef.current = { on:false, start:0, last:0, km:0, fuelL:0 }; setScanMis(null); setScanOdo(null); liveHist.current = {}; setLiveSel(""); recRef.current=false; setRecOn(false); setScanCodes(null); setScanVin(""); setScanReady(null); setScanFF(null); setScanLive({}); scanSup.current=null; liveRef.current=false; setLiveOn(false); }
   async function initElm(label){
     slog("⚙️ "+T("אתחול ELM327..."));
     const id = await scanSendCmd("ATZ",4000);
@@ -1286,6 +1288,62 @@ export default function App(){
   const profKey = () => ecuProf==="auto" ? profAuto() : ecuProf;
   async function ecuAddr(e){ await scanSendCmd("ATSH"+(e.sh||e.a),1500); await scanSendCmd("ATCRA"+e.r,1500); }
   async function ecuReset(){ await scanSendCmd("ATH0",1500); await scanSendCmd(can29() ? "ATSHDB33F1" : "ATSH7DF",1500); await scanSendCmd("ATCRA",1500); }
+  // ── maker-specific data (packs in src/maker, lazy-loaded) ──
+  const mkAutoKey = () => packForMake((vehicle && vehMake(vehicle)) || ((scanVin && decodeVin(scanVin)) || {}).make || "");
+  const mkKey = () => mkSel==="auto" ? mkAutoKey() : mkSel;
+  const mkBus = () => can29() ? "29" : "11";
+  const mkCarId = k => (scanVin||"?")+"|"+k+"|"+mkBus();
+  const mkEcuName = h => { const k = mkPack ? mkPack.key : mkKey(); const e = (MK_ECUS[k] && MK_ECUS[k][h]) || MK_ECUS[h]; if(e && e.length===3) return e[0]+" "+(en()?e[2]:e[1]); const top = mkPack && mkPack.top[h]; const m = MK_PATHS[top] || MK_PATHS.Other; return m[0]+" "+(en()?(top||"Other"):m[1]); };
+  async function mkOpen(){
+    const k = mkKey(); if(!k) return; setMkProg(T("טוען..."));
+    try{ const src = (await MAKER_PACKS[k].load()).default; const b29 = can29();
+      const P = { ...src, cmds: src.cmds.filter(c=> b29 ? c.h.length===4 : c.h.length===3), key:k, byEcu:{}, top:{} };
+      P.cmds.forEach((c,i)=>{ (P.byEcu[c.h] = P.byEcu[c.h]||[]).push(i); });
+      Object.keys(P.byEcu).forEach(h=>{ const n = {}; P.byEcu[h].forEach(i=>P.cmds[i].g.forEach(g=>{ n[g.p] = (n[g.p]||0)+1; })); P.top[h] = Object.keys(n).sort((a,b)=>n[b]-n[a])[0]; });
+      const st = await loadData("obd_mk", {}); const mine = st[mkCarId(k)]; setMkSup((mine && mine.ver===APP_VERSION && mine.sup) || {}); setMkVals({});
+      const answered = (ecuList||[]).filter(e=>e.ok).map(e=>e.a); P.order = Object.keys(P.byEcu).sort((a,b)=> (answered.includes(b)-answered.includes(a)) || (P.byEcu[b].length-P.byEcu[a].length));
+      setMkPack(P); setMkEcu(P.byEcu["7E0"] ? "7E0" : P.byEcu["DA10"] ? "DA10" : (P.order[0]||""));
+    }catch(e){ toast(T("הטעינה נכשלה")); } finally{ setMkProg(""); }
+  }
+  // ask one ECU for a list of commands; returns { idx: dataHex }
+  async function mkAsk(P, h, list, onStep){
+    const out = {}; let rax = ""; let dead = 0;
+    const b29 = h.length===4; await scanSendCmd("ATH0",1500); if(b29) await scanSendCmd("ATCP18",1500); await scanSendCmd("ATSH"+(b29 ? h+"F1" : h),1500);
+    for(let n=0;n<list.length;n++){
+      if(!scanCh.current || mkStop.current) break; const i = list[n]; const c = P.cmds[i];
+      if(c.r!==rax){ rax = c.r; await scanSendCmd("ATCRA"+(b29 ? "18DAF1"+rax : rax),1500); }
+      const raw = await scanSendCmd(c.s+c.p,3000); const d = mkData(raw, c.s, c.p);
+      if(d!==null){ out[i] = d; dead = -9999; } else if(/7F/.test(elmHexSafe(raw))) dead = -9999; else dead++;
+      if(onStep) onStep(n, c, raw, d);
+      if(dead>=10){ out.dead = true; break; }
+    }
+    return out;
+  }
+  async function mkScan(h){
+    const P = mkPack; if(!P || !scanCh.current || scanBusy) return; if(liveRef.current){ liveRef.current = false; setLiveOn(false); }
+    const list = P.byEcu[h]||[]; setScanBusy("mk"); mkStop.current = false; slog("🏭 "+T("נתוני יצרן: בודק {n} פקודות מול המחשב {a}...",{ n:list.length, a:h }));
+    try{
+      const got = await mkAsk(P, h, list, (n,c,raw,d)=>{ setMkProg(T("בודק מה נתמך")+` ${n+1}/${list.length}`); if(d!==null) slog("🔬 "+h+" "+c.s+c.p+" → "+elmHexSafe(raw).slice(0,120)); });
+      const dead = got.dead; delete got.dead; const ids = Object.keys(got).map(Number);
+      if(dead && !ids.length){ slog("ℹ️ "+T("המחשב {a} לא עונה ברכב הזה.",{ a:h })); toast(T("המחשב {a} לא עונה ברכב הזה.",{ a:h })); }
+      else slog("🏭 "+T("נמצאו {n} פקודות נתמכות במחשב {a}",{ n:ids.length, a:h }));
+      const sup = { ...mkSup, [h]: ids }; setMkSup(sup); setMkVals(v=>{ const o = { ...v }; ids.forEach(i=>{ o[i] = got[i]; }); return o; });
+      const st = await loadData("obd_mk", {}); const keys = Object.keys(st); if(keys.length>30) delete st[keys[0]]; st[mkCarId(P.key)] = { sup, t:Date.now(), ver:APP_VERSION }; saveData("obd_mk", st);
+    } finally{ await ecuReset(); setMkProg(""); setScanBusy(""); }
+  }
+  async function mkRead(h, loop){
+    const P = mkPack; const list = (mkSup[h]||[]); if(!P || !list.length || !scanCh.current || scanBusy) return; if(liveRef.current){ liveRef.current = false; setLiveOn(false); }
+    setScanBusy("mk"); mkStop.current = false; mkAutoRef.current = !!loop; setMkAuto(!!loop);
+    try{ do{ const got = await mkAsk(P, h, list); delete got.dead; setMkVals(v=>({ ...v, ...got })); } while(mkAutoRef.current && scanCh.current && !mkStop.current); }
+    finally{ mkAutoRef.current = false; setMkAuto(false); await ecuReset(); setScanBusy(""); }
+  }
+  function mkRows(h){
+    const P = mkPack; const rows = []; if(!P) return rows; const q = mkQ.trim().toLowerCase();
+    (mkSup[h]||[]).forEach(i=>{ const c = P.cmds[i]; const d = mkVals[i]; if(d===undefined) return;
+      c.g.forEach((g,j)=>{ const r = mkDecode(d, g); if(!r || (r.bad && !mkAll)) return; if(q && !g.n.toLowerCase().includes(q)) return; rows.push({ k:i+"_"+j, n:g.n, p:g.p, id:c.s+c.p, ...r }); }); });
+    return rows;
+  }
+  function mkCopy(h){ const t = mkRows(h).map(r=>`${r.n}: ${r.txt}${r.unit?" "+r.unit:""}  [${r.id}]`).join("\n"); try{ navigator.clipboard.writeText(`${h} — ${scanVin||""}\n`+t); toast(T("הועתק")); }catch(e){} }
   async function ecuScan(wide){
     if(!scanCh.current) return;
     const b29 = can29();
@@ -1924,6 +1982,44 @@ export default function App(){
           <p style={{ color:S.muted, fontSize:"11px", margin:"8px 0 0" }}>{T("לחץ על נתון כדי לראות גרף גדול. ההקלטה שומרת את כל הנתונים לקובץ CSV שנפתח באקסל.")}</p>
           </>}
         </Card>
+        {(can11() || can29()) && <Card title={"🏭 "+T("נתוני יצרן")}>
+          <p style={{ color:S.muted, fontSize:"12px", margin:"0 0 8px" }}>{T("נתונים שרק מחשבי היצרן מוסרים, מעבר ל-OBD הרגיל: נפח וזמן הזרקה, חום שמן תיבה, פספוסים לכל צילינדר, מהירות כל גלגל, מצב סוללת היברידי ועוד. הנוסחאות מגיעות ממאגר הקהילה הפתוח OBDb ועדיין לא נבדקו על רכב אמיתי באפליקציה הזו. אותה פקודה מפוענחת אחרת בדגמים שונים, לכן ערך שנראה לא הגיוני כנראה שייך לדגם אחר. שמות הנתונים באנגלית.")}</p>
+          <label style={{ display:"flex", alignItems:"center", gap:"8px", fontSize:"12px", color:S.sub, margin:"0 0 8px" }}>🏭 {T("יצרן")}
+            <select value={mkSel} onChange={e=>{ setMkSel(e.target.value); setMkPack(null); setMkSup({}); setMkVals({}); setMkEcu(""); }} disabled={!!scanBusy} style={{ flex:1, minWidth:0, minHeight:"38px", borderRadius:"10px", border:`1px solid ${S.bdr}`, background:S.inner, color:S.text, fontFamily:"inherit", padding:"0 6px" }}>
+              <option value="auto">{T("אוטומטי")} — {mkAutoKey() ? (en()?MAKER_PACKS[mkAutoKey()].en:MAKER_PACKS[mkAutoKey()].he) : T("לא זוהה")}</option>
+              {Object.entries(MAKER_PACKS).map(([k,P])=> <option key={k} value={k}>{en()?P.en:P.he}</option>)}
+            </select></label>
+          {!mkKey() ? <p style={{ color:S.sub, fontSize:"13px", margin:0 }}>ℹ️ {T("היצרן לא זוהה, או שאין לו נתונים במאגר (למשל BMW ומרצדס). אפשר לבחור יצרן מהרשימה.")}</p> :
+          mkPack && !mkPack.order.length ? <p style={{ color:S.sub, fontSize:"13px", margin:0 }}>ℹ️ {T("אין במאגר נתונים של היצרן הזה לסוג התקשורת של הרכב ({b} ביט).",{ b:mkBus() })}</p> : <>
+          {!mkPack ? <Btn kind="ghost" onClick={mkOpen} disabled={!!scanBusy || !!mkProg} style={{ width:"100%" }}>{mkProg ? "⏳ "+mkProg : "🏭 "+T("פתח נתוני יצרן")}</Btn> : (()=>{ const sup = mkSup[mkEcu]; const rows = sup ? mkRows(mkEcu) : []; const groups = {}; rows.forEach(r=>{ (groups[r.p] = groups[r.p]||[]).push(r); });
+            return <>
+              <div style={{ display:"flex", gap:"6px", overflowX:"auto", paddingBottom:"6px", marginBottom:"6px" }}>
+                {mkPack.order.map(h=> <button key={h} onClick={()=>!scanBusy && setMkEcu(h)} style={{ flex:"0 0 auto", minHeight:"40px", padding:"4px 10px", borderRadius:"10px", border:`1px solid ${mkEcu===h?S.acc:S.bdr}`, background:mkEcu===h?S.acc:S.inner, color:mkEcu===h?"#111":S.text, fontFamily:"inherit", fontSize:"12px", fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>{mkEcuName(h)} <span dir="ltr" style={{ fontFamily:"monospace", fontWeight:400, opacity:.75 }}>{h}</span>{mkSup[h] ? ` (${mkSup[h].length})` : ""}</button>)}
+              </div>
+              {mkProg && <div style={{ display:"flex", alignItems:"center", gap:"8px", margin:"0 0 8px" }}><span style={{ color:S.acc, fontSize:"12px", flex:1 }}>⏳ {mkProg}</span><Btn kind="danger" onClick={()=>{ mkStop.current = true; }}>⏹ {T("עצור")}</Btn></div>}
+              {!sup ? <Btn onClick={()=>mkScan(mkEcu)} disabled={!!scanBusy} style={{ width:"100%" }}>🔎 {T("בדוק מה המחשב הזה מוסר")} ({mkPack.byEcu[mkEcu].length})</Btn>
+                : sup.length===0 ? <><p style={{ color:S.sub, fontSize:"13px", margin:"0 0 8px" }}>ℹ️ {T("המחשב הזה לא מסר אף נתון מהמאגר ברכב הזה.")}</p><Btn kind="ghost" onClick={()=>mkScan(mkEcu)} disabled={!!scanBusy} style={{ width:"100%" }}>🔎 {T("בדוק שוב")}</Btn></>
+                : <>
+                  <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginBottom:"8px" }}>
+                    {mkAuto ? <Btn kind="danger" onClick={()=>{ mkAutoRef.current = false; mkStop.current = true; }} style={{ flex:2 }}>⏹ {T("עצור")}</Btn>
+                      : <><Btn onClick={()=>mkRead(mkEcu,true)} disabled={!!scanBusy} style={{ flex:2 }}>▶️ {T("רענון רציף")}</Btn><Btn kind="ghost" onClick={()=>mkRead(mkEcu,false)} disabled={!!scanBusy} style={{ flex:1 }}>🔄 {T("קרא פעם אחת")}</Btn></>}
+                    <IconBtn label={T("העתק")} onClick={()=>mkCopy(mkEcu)}>📋</IconBtn>
+                    <IconBtn label={T("בדוק שוב")} onClick={()=>mkScan(mkEcu)}>🔎</IconBtn>
+                  </div>
+                  <Field value={mkQ} onChange={e=>setMkQ(e.target.value)} placeholder={T("חיפוש נתון (באנגלית)...")} style={{ direction:"ltr", marginBottom:"6px" }} />
+                  <label style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"12px", color:S.sub, margin:"0 0 8px" }}><input type="checkbox" checked={mkAll} onChange={e=>setMkAll(e.target.checked)} /> {T("הצג גם ערכים שמחוץ לטווח (כנראה של דגם אחר)")}</label>
+                  {rows.length===0 && <p style={{ color:S.muted, fontSize:"12px", margin:0 }}>{T("אין נתונים להצגה")}</p>}
+                  {Object.keys(groups).map(p=>{ const m = MK_PATHS[p] || MK_PATHS.Other; return <div key={p} style={{ marginBottom:"8px" }}>
+                    <div style={{ color:S.acc, fontSize:"12px", fontWeight:800, margin:"6px 0 3px" }}>{m[0]} {en()?p:m[1]} ({groups[p].length})</div>
+                    {groups[p].map(r=> <div key={r.k} dir="ltr" style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:"8px", fontSize:"12px", padding:"4px 0", borderBottom:`1px solid ${S.bdr}`, opacity:r.bad?.5:1 }}>
+                      <span style={{ color:S.sub, textAlign:"left", flex:1 }}>{r.n} <span style={{ color:S.muted, fontFamily:"monospace", fontSize:"10px" }}>{r.id}</span></span>
+                      <span style={{ color:r.bad?S.warn:S.text, fontWeight:700, fontFamily:"monospace", whiteSpace:"nowrap" }}>{r.bad?"⚠️ ":""}{r.txt}{r.unit?" "+r.unit:""}</span></div>)}
+                  </div>; })}
+                </>}
+              <p dir="ltr" style={{ color:S.muted, fontSize:"10px", margin:"8px 0 0", textAlign:"center", unicodeBidi:"isolate" }}>Data: OBDb · github.com/OBDb · CC BY-SA 4.0</p>
+            </>; })()}
+          </>}
+        </Card>}
         </div>
         <div style={{ display: scanSub==="ecus" ? "block" : "none" }}>
         <Card title={"🧩 "+T("כל מחשבי הרכב")+(ecuList?` (${ecuList.filter(e=>e.ok).length})`:"")} actions={ecuList && ecuList.some(e=>e.ok) && <IconBtn label={T("סרוק שוב")} onClick={()=>ecuScan(false)}>🔄</IconBtn>}>
@@ -2449,7 +2545,7 @@ export default function App(){
         </>}
         <footer style={{ marginTop:"16px", textAlign:"center", color:S.muted, fontSize:"11px", lineHeight:1.6 }}>
           <div>🔧 OBD Scanner Pro · v{APP_VERSION} · <a href={ABOUT.link} target="_blank" rel="noopener noreferrer" style={{ color:S.acc }}>AppNest</a></div>
-          <div>{L(ABOUT.creator)}</div><div>{L(ABOUT.copy)}</div>
+          <div>{L(ABOUT.creator)}</div><div>{L(ABOUT.copy)}</div><div style={{ marginTop:"4px" }}>{T("נתוני יצרן: מאגר OBDb, רישיון CC BY-SA 4.0")}</div>
           <div style={{ marginTop:"4px" }}>⚠️ {T("מידע כללי בלבד — יש לאמת מול נתוני היצרן. השימוש באחריות המשתמש.")}</div>
         </footer>
       </main>
