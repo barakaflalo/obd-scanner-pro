@@ -125,7 +125,7 @@ export function openExt(url){
 
 
 // ═══ App context shared with non-React helpers (print/share) ═══
-export const APP_VERSION = "2.4.0";
+export const APP_VERSION = "2.6.0";
 export const ctx = { lang: "he", user: { name: "", phone: "", address: "", bizId: "", logo: "" } };
 export const ABOUT = {
   title: "OBD Scanner Pro",
@@ -417,11 +417,33 @@ export function uasFmt(uas, raw){ const v = sgn(uas, raw); const u = UAS[uas]; i
 // pass / fail / "just passed" (within 10% of a real limit)
 export function m06Judge(r){
   const v = sgn(r.uas,r.val), lo = sgn(r.uas,r.min), hi = sgn(r.uas,r.max); const signed = r.uas >= 0x80;
-  const hasLo = signed ? lo > -32768 : lo > 0, hasHi = signed ? hi < 32767 : hi < 65535;
+  // a lower limit of 0 is a formality (the value just can't be negative) — it is never a limit to be "close to"
+  const hasLo = signed ? (lo > -32768 && lo !== 0) : lo > 0, hasHi = signed ? hi < 32767 : hi < 65535;
   const pass = v >= lo && v <= hi; let near = false;
-  if(pass){ const span = (hasLo && hasHi) ? hi-lo : hasHi ? Math.abs(hi) : hasLo ? Math.abs(lo) : 0;
+  // real-car lesson (Lexus): a test that hasn't run since the codes were cleared reports all zeros, or a value exactly ON its limit
+  const norun = (r.val===0 && r.min===0 && r.max===0) || (pass && ((hasHi && v===hi) || (hasLo && v===lo)));
+  if(pass && !norun){ const span = (hasLo && hasHi) ? hi-lo : hasHi ? Math.abs(hi) : hasLo ? Math.abs(lo) : 0;
     if(span > 0){ if(hasHi && (hi-v) <= span*0.1) near = true; if(hasLo && (v-lo) <= span*0.1) near = true; } }
-  return { pass, near, hasLo, hasHi, v, lo, hi };
+  return { pass, near, norun, hasLo, hasHi, v, lo, hi };
+}
+// ISO-TP replies read with headers on (ATH1): { "7E8": "4904013333304E37...", "7E9": ... } — keeps two computers' multi-frame answers apart
+export function isoTpByHeader(raw){
+  const out = {}, need = {};
+  for(const l of elmLines(raw)){ const h = l.replace(/\s/g,"").toUpperCase(); if(!/^7[0-9A-F]{2}[0-9A-F]{4,}$/.test(h)) continue;
+    const id = h.slice(0,3), pci = h[3], rest = h.slice(3);
+    if(pci==="0"){ const n = parseInt(rest[1],16); out[id] = rest.slice(2, 2+n*2); }
+    else if(pci==="1"){ need[id] = parseInt(rest.slice(1,4),16)*2; out[id] = rest.slice(4); }
+    else if(pci==="2" && out[id] !== undefined){ out[id] += rest.slice(2); } }
+  for(const id in need) out[id] = out[id].slice(0, need[id]);
+  return out;
+}
+const hexAscii = hx => { let t = ""; for(let j=0;j+1<hx.length;j+=2){ const c = parseInt(hx.slice(j,j+2),16); if(c>=32&&c<=126) t += String.fromCharCode(c); } return t.trim(); };
+// Mode 09 by computer: calibration ID (04), CVN (06), ECU name (0A)
+export function parseMode09(raw, pid){
+  const res = {}; const by = isoTpByHeader(raw);
+  for(const id in by){ const d = by[id]; const i = d.indexOf("49"+pid); if(i<0) continue; const body = d.slice(i+6); // skip 49 pid count
+    res[id] = pid==="06" ? (body.match(/.{8}/g)||[]).filter(x=>!/^0+$/.test(x)).join(" ") : hexAscii(body); }
+  return res;
 }
 
 // ═══ Demo adapter: answers like a real ELM327 so the scanner can be tried without a car ═══
@@ -456,6 +478,36 @@ export function ecusWide(){
   for(let a=0x7E4; a<=0x7E7; a++){ const A = a.toString(16).toUpperCase(); if(!known.has(A)) out.push({ a:A, r:(a+8).toString(16).toUpperCase(), n:"Unknown "+A, h:"מחשב "+A, ic:"❔" }); }
   return out;
 }
+// ═══ maker profiles: where each maker puts its computers (request → reply address) ═══
+// Collected from public documentation and open-source tools; NOT verified on real cars yet — the screen says so.
+const PT = ECUS.filter(e=>/^7E/.test(e.a));   // powertrain addresses are the same for everyone (OBD standard)
+const E = (a,r,n,h,ic) => ({ a, r, n, h, ic });
+export const ECU_PROFILES = {
+  generic:{ he:"כללי", en:"Generic", list:ECUS },
+  toyota:{ he:"טויוטה / לקסוס", en:"Toyota / Lexus", list:[...PT, E("7B0","7B8","ABS / VSC","ABS / בקרת יציבות","🛞"), E("780","788","SRS — Airbags","כריות אוויר","🛡️"), E("7A1","7A9","EPS — Steering","הגה כוח","🎡"), E("7C0","7C8","Combination meter","לוח שעונים","📊"), E("7C4","7CC","Air conditioner","מיזוג","❄️"), E("750","758","Main body","מרכב ראשי","🚪"), E("730","738","Unit 730","מחשב 730 (לא מזוהה)","❔"), E("7D0","7D8","Unit 7D0","מחשב 7D0 (לא מזוהה)","❔"), E("790","798","Unit 790","מחשב 790","❔")] },
+  vag:{ he:"פולקסווגן / אאודי / סקודה / סיאט", en:"VW / Audi / Škoda / SEAT", off:0x6A, wide:[0x700,0x77F,1], list:[...PT, E("713","77D","ABS / ESP","ABS / ESP","🛞"), E("715","77F","Airbags","כריות אוויר","🛡️"), E("712","77C","Steering assist","הגה כוח","🎡"), E("714","77E","Instruments","לוח שעונים","📊"), E("70E","778","Central electrics (BCM)","מרכב (BCM)","🚪"), E("710","77A","Gateway","שער תקשורת","🌐"), E("746","7B0","Climate","מיזוג","❄️")] },
+  hk:{ he:"יונדאי / קיה", en:"Hyundai / Kia", list:[...PT, E("7D1","7D9","ABS / ESC","ABS / ESC","🛞"), E("7D2","7DA","Airbags","כריות אוויר","🛡️"), E("7D4","7DC","MDPS — Steering","הגה כוח","🎡"), E("7C6","7CE","Cluster","לוח שעונים","📊"), E("7A0","7A8","BCM — Body","מרכב","🚪"), E("7B3","7BB","Air conditioner","מיזוג","❄️"), E("7A5","7AD","Smart key","מפתח חכם","🔑")] },
+  ford:{ he:"פורד", en:"Ford", list:[...PT, E("760","768","ABS","ABS","🛞"), E("737","73F","RCM — Airbags","כריות אוויר","🛡️"), E("720","728","IPC — Cluster","לוח שעונים","📊"), E("726","72E","BCM — Body","מרכב","🚪"), E("730","738","PSCM — Steering","הגה כוח","🎡"), E("7D0","7D8","APIM — SYNC","מולטימדיה","🎵"), E("733","73B","HVAC","מיזוג","❄️"), E("736","73E","Parking aid","חיישני חנייה","🅿️")] },
+  gm:{ he:"שברולט / GM", en:"Chevrolet / GM", off:0x400, wide:[0x241,0x25F,1], list:[...PT, E("241","641","BCM — Body","מרכב","🚪"), E("243","643","EBCM — Brakes","בלמים","🛞"), E("247","647","SDM — Airbags","כריות אוויר","🛡️"), E("24C","64C","IPC — Cluster","לוח שעונים","📊"), E("251","651","HVAC","מיזוג","❄️"), E("244","644","Radio","רדיו","🎵")] },
+  nissan:{ he:"ניסאן / רנו / דאצ'יה", en:"Nissan / Renault / Dacia", off:0x20, wide:[0x740,0x75F,1], list:[...PT, E("740","760","ABS","ABS","🛞"), E("752","772","Airbags","כריות אוויר","🛡️"), E("745","765","BCM / UCH","מרכב","🚪"), E("743","763","Cluster","לוח שעונים","📊"), E("742","762","EPS — Steering","הגה כוח","🎡"), E("744","764","Climate","מיזוג","❄️")] },
+};
+export function profileForMake(make){ const m = String(make||"").toLowerCase();
+  if(/toyota|lexus|daihatsu|טויוטה|לקסוס/.test(m)) return "toyota"; if(/volkswagen|audi|skoda|škoda|seat|cupra|פולקסווגן|אאודי|סקודה|סיאט/.test(m)) return "vag";
+  if(/hyundai|kia|genesis|יונדאי|קיה/.test(m)) return "hk"; if(/ford|פורד/.test(m)) return "ford"; if(/chevrolet|gm\b|buick|cadillac|daewoo|שברולט/.test(m)) return "gm";
+  if(/nissan|renault|dacia|infiniti|ניסאן|רנו|דאצ/.test(m)) return "nissan"; return "generic"; }
+const hx3 = v => v.toString(16).toUpperCase().padStart(3,"0");
+// the "wide scan" for a profile: every address in the maker's range that isn't already on the list
+export function ecusWideFor(key){
+  const P = ECU_PROFILES[key] || ECU_PROFILES.generic; if(!P.wide) return ecusWide();
+  const known = new Set(P.list.map(e=>e.a)); const out = [];
+  for(let a=P.wide[0]; a<=P.wide[1]; a+=P.wide[2]){ const A = hx3(a); if(!known.has(A)) out.push({ a:A, r:hx3(a+P.off), n:"Unknown "+A, h:"מחשב "+A, ic:"❔" }); }
+  return out;
+}
+// 29-bit CAN (Honda and others): physical address = 18 DA <target> F1, reply = 18 DA F1 <target>
+const N29 = { "10":["Engine","מנוע","⚙️"], "18":["Transmission","תיבת הילוכים","🔄"], "28":["ABS / brakes","בלמים ABS","🛞"], "30":["Steering","הגה כוח","🎡"], "40":["Body","מרכב","🚪"], "58":["Airbags","כריות אוויר","🛡️"], "60":["Cluster","לוח שעונים","📊"] };
+const e29 = t => { const k = N29[t]; return { a:t, sh:"DA"+t+"F1", r:"18DAF1"+t, b29:true, n: k ? k[0]+" (0x"+t+")" : "Unit 0x"+t, h: k ? k[1]+" (0x"+t+")" : "מחשב 0x"+t, ic: k ? k[2] : "❔" }; };
+export const ECUS29 = ["10","11","17","18","1D","28","29","2B","30","33","3D","40","42","53","58","5B","60","61","6F","70","98","A0","B0","D0"].map(e29);
+export function ecus29Wide(){ const known = new Set(ECUS29.map(e=>e.a)); const out = []; for(let t=0;t<=0xEF;t++){ const T = t.toString(16).toUpperCase().padStart(2,"0"); if(!known.has(T)) out.push(e29(T)); } return out; }
 export const UDS_DIDS = [
   { d:"F190", n:"VIN", h:"מספר שילדה", txt:true },
   { d:"F197", n:"System name", h:"שם המערכת", txt:true },
@@ -517,7 +569,7 @@ export function makeDemoAdapter(){
   const mask = (base) => { let m=0; for(const p of sup){ const n=parseInt(p,16)-parseInt(base,16); if(n>=1&&n<=32) m |= (1<<(32-n)); } return ("41"+base+(m>>>0).toString(16).toUpperCase().padStart(8,"0")); };
   const hex = (n,len=2)=>Math.max(0,Math.round(n)).toString(16).toUpperCase().padStart(len,"0");
   let t0 = Date.now(); let cleared = false; let hdr = false; let sh = "7DF";
-  const ecuAct = { "7E0":{ name:"ENGINE ECU", sw:"89661-30M10", hw:"HW-0212", dtc:"" }, "7E1":{ name:"TRANSMISSION", sw:"89530-30E40", hw:"HW-0107", dtc:"" }, "720":{ name:"BODY CONTROL", sw:"BCM-4.12", hw:"B-03", dtc:"" }, "730":{ name:"AIRBAG SRS", sw:"SRS-2.0", hw:"S-11", dtc:"80010008", kwp:true }, "740":{ name:"COMBINATION METER", sw:"83800-3T050", hw:"M-21", dtc:"" }, "750":{ name:"ABS/VSC", sw:"ABS-7.3", hw:"A-05", dtc:"40350009C1210008" }, "760":{ name:"POWER STEERING", sw:"EPS-1.8", hw:"E-02", dtc:"" }, "790":{ name:"GATEWAY", sw:"GW-3.1", hw:"G-01", dtc:"" } };
+  const ecuAct = { "7E0":{ name:"ENGINE ECU", sw:"89661-30M10", hw:"HW-0212", dtc:"" }, "7E1":{ name:"TRANSMISSION", sw:"89530-30E40", hw:"HW-0107", dtc:"" }, "720":{ name:"BODY CONTROL", sw:"BCM-4.12", hw:"B-03", dtc:"" }, "730":{ name:"AIRBAG SRS", sw:"SRS-2.0", hw:"S-11", dtc:"80010008", kwp:true }, "740":{ name:"COMBINATION METER", sw:"83800-3T050", hw:"M-21", dtc:"" }, "750":{ name:"ABS/VSC", sw:"ABS-7.3", hw:"A-05", dtc:"40350009C1210008" }, "760":{ name:"POWER STEERING", sw:"EPS-1.8", hw:"E-02", dtc:"" }, "790":{ name:"GATEWAY", sw:"GW-3.1", hw:"G-01", dtc:"" }, "713":{ name:"ABS ESP MK60", sw:"1K0907379", hw:"H-04", dtc:"", rid:"77D" }, "DA28F1":{ name:"VSA", sw:"39980-T", hw:"V-1", dtc:"", rid:"18DAF128" } };
   const asc = t => t.split("").map(c=>c.charCodeAt(0).toString(16).toUpperCase().padStart(2,"0")).join("");
   const vinFrames = () => { const bytes = ["49","02","01"].concat(vin.split("").map(c=>c.charCodeAt(0).toString(16).toUpperCase())); const out=["014"]; out.push("0:"+bytes.slice(0,6).join("")); let i=6,seq=1; while(i<bytes.length){ out.push(seq+":"+bytes.slice(i,i+7).join("").padEnd(14,"0")); i+=7; seq++; } return out.join("\r"); };
   const pedal = () => { const s=(Date.now()-t0)/1000; return Math.max(0, Math.sin(s/1.5))*92; };
@@ -548,7 +600,7 @@ export function makeDemoAdapter(){
       if(c==="01A6") return (hdr ? "7E80641A60015BD78\r7E90641A60015BDAA" : "41A60015BD78")+"\r\r>";
       if(c.startsWith("ATSH")){ sh = c.slice(4)||"7DF"; return "OK\r\r>"; }
       if(sh!=="7DF" && !/^AT/.test(c)){
-        const e = ecuAct[sh]; const rid = (parseInt(sh,16)+8).toString(16).toUpperCase(); const wrap = d => (hdr ? rid+(d.length/2).toString(16).toUpperCase().padStart(2,"0")+d : d)+"\r\r>";
+        const e = ecuAct[sh]; const rid = e && e.rid ? e.rid : (parseInt(sh,16)+8).toString(16).toUpperCase(); const wrap = d => (hdr ? rid+(d.length/2).toString(16).toUpperCase().padStart(2,"0")+d : d)+"\r\r>";
         if(!e) return "NO DATA\r\r>";
         if(c==="3E00") return wrap("7E00");
         if(/^10(01|03)$/.test(c)) return wrap("50"+c.slice(2)+"003201F4");
@@ -571,6 +623,9 @@ export function makeDemoAdapter(){
       if(c==="0A") return "4A00\r\r>";
       if(c==="04") { cleared = true; return "44\r\r>"; }
       if(c==="0902") return vinFrames()+"\r\r>";
+      if(c==="0904") return (hdr ? "7E810134904013333304E\r7E82137303030000000\r7E82200000000000000\r7E91013490401353330\r7E92143393030300000\r7E92200000000000000" : "NO DATA")+"\r\r>";
+      if(c==="0906") return (hdr ? "7E807490601070FC576\r7E9074906013D874A2D" : "490601070FC576")+"\r\r>";
+      if(c==="090A") return "NO DATA\r\r>";
       if(c==="0600") return "460080000001\r\r>";
       if(c==="0620") return "462080000001\r\r>";
       if(c==="0640") return "4640C0000000\r\r>";

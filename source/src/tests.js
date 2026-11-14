@@ -88,7 +88,8 @@ export const GUIDED_TESTS = [
       if(d>=5){ out.push(L("חסימת הצינור הורידה את ההעשרה → אדי דלק נכנסו דרכו. "+(cmd!==null && cmd<5?"ה-Purge המבוקש היה ~0%, אז השסתום דולף — להחליף שסתום Purge.":"בדוק אם השסתום נפתח רק כשהמחשב מבקש."),"Blocking the hose removed the enrichment → fuel vapour was coming through it. "+(cmd!==null && cmd<5?"Commanded purge was ~0%, so the valve leaks — replace the purge valve.":"Check that the valve only opens when commanded."))); return { lvl:"bad", lines:out }; }
       if(d<=-5){ out.push(L("אחרי החסימה התערובת נהייתה עשירה יותר → דרך הצינור נכנס אוויר (דליפת ואקום), לא אדי דלק. בדוק את הצינור והחיבורים.","After blocking, the mixture got richer → air was entering through that hose (a vacuum leak), not vapour. Check the hose and joints.")); return { lvl:"warn", lines:out }; }
       out.push(L("החסימה כמעט לא שינתה כלום → שסתום ה-Purge אוטם. סיבת העשרה (אם יש) נמצאת במקום אחר.","Blocking changed almost nothing → the purge valve seals. Any enrichment comes from elsewhere."));
-      return { lvl:"ok", lines:out };
+      const rich = (s0+(b0??s0))/2 < -10; if(rich) out.push(L("התערובת עדיין עשירה מאוד גם בלי ה-Purge → המשך ל: דלק בשמן, ניקוי MAF, מזרקים דולפים.","The mixture is still very rich without the purge → move on to: fuel in the oil, MAF cleaning, leaking injectors."));
+      return { lvl: (ect!==null && ect<75) || rich ? "warn" : "ok", lines:out };
     }
   },
   {
@@ -208,17 +209,20 @@ export const GUIDED_TESTS = [
       const Ls = r.engL, out = [], lv = [];
       if(!Ls) return { lvl:"na", lines:[L("לא הוזן נפח מנוע.","No engine size entered.")] };
       if(avg(r.idle,"10")===null) return { lvl:"na", lines:[L("הרכב לא מסר נתון MAF (יש רכבים שמודדים רק לחץ סעפת — MAP).","The car didn't report MAF (some cars only measure manifold pressure — MAP).")] };
-      for(const [k,he,en,lo,hi] of [["idle","בסרק","at idle",0.8,1.8],["rev","ב-2500 סל\"ד","at 2500 rpm",2.2,5.5]]){
-        const maf = avg(tail(r[k]),"10"), rpm = avg(tail(r[k]),"0C"), map = avg(tail(r[k]),"0B"), iat = avg(tail(r[k]),"0F"); if(maf===null || rpm===null) continue;
+      const baro = avg(r.idle,"33"); const alt = baro!==null && baro>60 ? baro/101.3 : 1;   // thinner air at altitude → less mass for the same engine
+      for(const [k,he,en,lo,hi] of [["idle","בסרק","at idle",1.2,2.4],["rev","בסל\"ד גבוה","at higher rpm",1.1,2.2]]){
+        const maf = avg(tail(r[k]),"10"), rpm = avg(tail(r[k]),"0C"), map = avg(tail(r[k]),"0B"), iat = avg(tail(r[k]),"0F"); if(maf===null || rpm===null || rpm<300) continue;
         if(k==="rev" && rpm<2000){ out.push(L(`הסל"ד היה רק ${rpm.toFixed(0)} — השלב השני לא נשפט.`,`Only ${rpm.toFixed(0)} rpm — the second stage wasn't judged.`)); continue; }
         if(map!==null && map>15){ // enough data for a real calculation: volumetric efficiency against manifold density
           const rho = 1.2*(map/101.3)*(293/((iat??20)+273)); const ve = maf/(Ls*rpm/120*rho)*100; const l = ve>=60 && ve<=105 ? "ok" : (ve>=50 && ve<=115 ? "warn" : "bad"); lv.push(l);
           out.push(L(`${he}: ${ltr(maf.toFixed(1)+" g/s")} · יעילות נפחית מחושבת ${ltr(ve.toFixed(0)+"%")} — `+(l==="ok"?"הגיוני ✓":ve<60?"נמוך: ה-MAF מודד פחות מדי (מלוכלך) או דליפת אוויר אחריו":"גבוה: ה-MAF מודד יותר מדי"),`${en}: ${maf.toFixed(1)} g/s · calculated volumetric efficiency ${ve.toFixed(0)}% — `+(l==="ok"?"plausible ✓":ve<60?"low: the MAF under-reads (dirty) or air leaks in after it":"high: the MAF over-reads")));
-        } else { const per = maf/Ls; const l = per>=lo && per<=hi ? "ok" : (per>=lo*0.8 && per<=hi*1.2 ? "warn" : "bad"); lv.push(l);
-          out.push(L(`${he}: ${ltr(maf.toFixed(1)+" g/s")} = ${ltr(per.toFixed(2))} לליטר (צפוי בערך ${ltr(lo+"–"+hi)}) — `+(l==="ok"?"הגיוני ✓":per<lo?"נמוך: MAF מלוכלך או דליפת אוויר אחריו":"גבוה: ה-MAF מודד יותר מדי, או עומס על המנוע"),`${en}: ${maf.toFixed(1)} g/s = ${per.toFixed(2)} per litre (roughly ${lo}–${hi} expected) — `+(l==="ok"?"plausible ✓":per<lo?"low: dirty MAF or an air leak after it":"high: the MAF over-reads, or the engine is loaded"))); }
+        } else { // rule of thumb: grams per second, per litre, per 1000 rpm — so a fast (cold) idle doesn't look like a fault
+          const per = maf/Ls/(rpm/1000)/alt; const l = per>=lo && per<=hi ? "ok" : (per>=lo*0.85 && per<=hi*1.15 ? "warn" : "bad"); lv.push(l); const edge = l==="ok" && per > hi-(hi-lo)*0.2;
+          out.push(L(`${he} (${rpm.toFixed(0)} סל"ד): ${ltr(maf.toFixed(1)+" g/s")} = ${ltr(per.toFixed(2))} לליטר ל-1000 סל"ד${alt<0.97?" (מתוקן לגובה)":""}, צפוי בערך ${ltr(lo+"–"+hi)} — `+(l!=="ok" ? (per<lo?"נמוך: MAF מלוכלך או דליפת אוויר אחריו":"גבוה: ה-MAF מודד יותר מדי") : edge?"בטווח, אבל בצד הגבוה":"הגיוני ✓"),`${en} (${rpm.toFixed(0)} rpm): ${maf.toFixed(1)} g/s = ${per.toFixed(2)} per litre per 1000 rpm${alt<0.97?" (altitude-corrected)":""}, roughly ${lo}–${hi} expected — `+(l!=="ok" ? (per<lo?"low: dirty MAF or an air leak after it":"high: the MAF over-reads") : edge?"in range, but on the high side":"plausible ✓")));
+          if(edge) r._edge = true; }
       }
-      const ect = avg(r.idle,"05"); if(ect!==null && ect<70) out.push(L("המנוע היה קר — סרק גבוה מעלה את הקריאה. חזור עם מנוע חם.","The engine was cold — fast idle raises the reading. Repeat when warm."));
-      const baro = avg(r.idle,"33"); if(baro!==null && baro<92) out.push(L(`בגובה (${baro.toFixed(0)} kPa) האוויר דליל, אז קריאה מעט נמוכה היא תקינה.`,`At altitude (${baro.toFixed(0)} kPa) the air is thinner, so a slightly low reading is normal.`));
+      if(r._edge) out.push(L("אם גם תיקוני הדלק שליליים (תערובת עשירה), קריאה בצד הגבוה מחשידה MAF שמודד יותר מדי — ניקוי MAF הוא צעד זול ששווה לנסות. הטווח כאן הוא כלל אצבע, לא נתון יצרן.","If the fuel trims are also negative (rich mixture), a high-side reading points at a MAF that over-reads — cleaning it is a cheap step worth trying. The range here is a rule of thumb, not maker data."));
+      const ect = avg(r.idle,"05"); if(ect!==null && ect<70) out.push(L(`המנוע היה קר (${ect.toFixed(0)}°C) — לתוצאה מדויקת חזור עם מנוע חם.`,`The engine was cold (${ect.toFixed(0)}°C) — repeat when warm for an accurate result.`));
       out.push(L("זו בדיקת סבירות, לא כיול. אם התוצאה חריגה: נקה את ה-MAF בספריי ייעודי ובדוק את מסנן האוויר והצנרת.","This is a plausibility check, not a calibration. If it's off: clean the MAF with proper spray and check the air filter and ducting."));
       return { lvl:worst(lv), lines:out };
     }
