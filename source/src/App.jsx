@@ -429,7 +429,8 @@ function AssistantPanel({ onClose, getCtx, messages, setMessages, aiCfg, setAiCf
 // ═══ Guided test runner (full screen) ═══
 const LVL = { ok:["✅","ok"], warn:["🟠","warn"], bad:["🔴","bad"], na:["⚪","na"] };
 const lvlColor = l => l==="ok" ? S.green : l==="warn" ? S.warn : l==="bad" ? S.red : S.muted;
-function GuidedTest({ test, read, onDone, onClose, backArrow }){
+function GuidedTest({ test, read, prev, onDone, onClose, backArrow }){
+  const prevRef = useRef(prev);
   const [idx,setIdx] = useState(-1); const [live,setLive] = useState({}); const [left,setLeft] = useState(0); const [result,setResult] = useState(null);
   const res = useRef({}); const cancel = useRef(false);
   const Lx = (he,enS) => en() ? enS : he;
@@ -473,6 +474,7 @@ function GuidedTest({ test, read, onDone, onClose, backArrow }){
       {result && <Card style={{ border:`2px solid ${lvlColor(result.lvl)}` }}>
         <div style={{ color:lvlColor(result.lvl), fontWeight:800, fontSize:"16px", marginBottom:"8px" }}>{LVL[result.lvl][0]} {result.lvl==="ok"?T("תקין"):result.lvl==="warn"?T("כדאי לבדוק"):result.lvl==="bad"?T("נמצאה בעיה"):T("אין מספיק נתונים")}</div>
         {result.lines.map((l,i)=> <p key={i} style={{ fontSize:"13px", lineHeight:1.6, margin:"0 0 6px", color:S.sub }}>• {l}</p>)}
+        {prevRef.current && <div style={{ background:S.inner, borderRadius:"10px", padding:"8px 10px", marginTop:"8px", fontSize:"12.5px", color:S.sub }}><b style={{ color:S.text }}>🕘 {T("בפעם הקודמת")}{prevRef.current.at ? " ("+new Date(prevRef.current.at).toLocaleDateString(en()?"en-GB":"he-IL")+")" : ""}:</b> {LVL[prevRef.current.lvl][0]} {prevRef.current.line}</div>}
         <div style={{ display:"flex", gap:"8px", marginTop:"10px" }}><Btn kind="ghost" onClick={()=>{ res.current = {}; setResult(null); setIdx(0); }} style={{ flex:1 }}>🔄 {T("שוב")}</Btn><Btn onClick={onClose} style={{ flex:1 }}>{T("סיום")}</Btn></div>
       </Card>}
     </div>
@@ -687,6 +689,7 @@ export default function App(){
   const [scanMis,setScanMis] = useState(null);
   const [ecuList,setEcuList] = useState(null); const [ecuDet,setEcuDet] = useState({}); const [ecuProg,setEcuProg] = useState(""); const [ecuOpen,setEcuOpen] = useState("");
   const [dashView,setDashView] = useState(false); const perfRef = useRef({ armed:false, start:0, time:null }); const tripRef = useRef({ on:false, start:0, last:0, km:0, fuelL:0 });
+  const [scanSub,setScanSub] = useState("conn"); const [scanHist,setScanHist] = useState([]); const [histSel,setHistSel] = useState([]); const [lastAdp,setLastAdp] = useState(null);
   const [m06Res,setM06Res] = useState(null); const [m06All,setM06All] = useState(false); const [testRes,setTestRes] = useState({}); const [testOpen,setTestOpen] = useState("");
   const [serialBaud,setSerialBaud] = useState("38400"); const [supOpen,setSupOpen] = useState(false);
   const [scanOdo,setScanOdo] = useState(null); const [odoDash,setOdoDash] = useState(""); const [reportOpen,setReportOpen] = useState(false);
@@ -719,9 +722,18 @@ export default function App(){
     const [n,f,h,w,st,vh,vhs,dgs,ch,ai] = await Promise.all([loadData("adp_notes",{}),loadData("adp_favs",[]),loadData("adp_history",[]),loadData("adp_worklog",[]),loadData("adp_settings",DEFAULT_SETTINGS),loadData("adp_vehicle",null),loadData("adp_vehicles",[]),loadData("adp_diagrams",[]),loadData("adp_chat",[]),loadData("adp_ai",null)]);
     const s2 = { ...DEFAULT_SETTINGS, ...st };
     setNotes(n); setFavs(f); setHistory(h); setWorkLog(w); setSettings(s2); setVehicle(vh); setVehicles(vhs||[]); setDiagrams(dgs||[]); setChat(ch||[]); if(ai) setAiCfg(p=>({ ...p, ...ai })); setLoaded(true);
+    try{ setScanHist(await loadData("obd_scanhist",[]) || []); setLastAdp(await loadData("obd_lastadp",null)); }catch(e){}
     if(!s2.guideDone) setGuideStep(0);
   })(); },[]);
   useEffect(()=>{ if(loaded) saveData("adp_notes",notes); },[notes,loaded]);
+  useEffect(()=>{ if(loaded) saveData("obd_scanhist",scanHist); },[scanHist,loaded]);
+  // keep the screen on while live data runs or a guided test is open
+  useEffect(()=>{
+    if(!(liveOn || testOpen) || !navigator.wakeLock) return; let lock = null, dead = false;
+    const get = async()=>{ try{ if(document.visibilityState==="visible"){ lock = await navigator.wakeLock.request("screen"); if(dead && lock){ lock.release().catch(()=>{}); } } }catch(e){} };
+    get(); document.addEventListener("visibilitychange", get);
+    return ()=>{ dead = true; document.removeEventListener("visibilitychange", get); if(lock) lock.release().catch(()=>{}); };
+  },[liveOn,testOpen]);
   useEffect(()=>{ if(loaded) saveData("adp_vehicle",vehicle); },[vehicle,loaded]);
   useEffect(()=>{ if(loaded) saveData("adp_vehicles",vehicles); },[vehicles,loaded]);
   useEffect(()=>{ if(loaded) saveData("adp_diagrams",diagrams); },[diagrams,loaded]);
@@ -832,7 +844,7 @@ export default function App(){
     catch(e){ toast(T("ההורדה נכשלה")); }
   }
   function doExport(){
-    const data = { app:"OBD Scanner Pro", version:APP_VERSION, exported:new Date().toISOString(), user:settings.name||"", summary:{ worklog:workLog.length, notes:Object.values(notes).reduce((a,b)=>a+b.length,0), favorites:favs.length, vehicles:vehicles.length }, notes, favs, history, workLog, vehicles, settings };
+    const data = { app:"OBD Scanner Pro", version:APP_VERSION, exported:new Date().toISOString(), user:settings.name||"", summary:{ worklog:workLog.length, notes:Object.values(notes).reduce((a,b)=>a+b.length,0), favorites:favs.length, vehicles:vehicles.length }, notes, favs, history, workLog, vehicles, settings, scanHist };
     download(JSON.stringify(data,null,1),`obdscanner-backup-${new Date().toISOString().slice(0,10)}.json`,"application/json");
     toast(T("✅ קובץ הגיבוי נוצר"));
   }
@@ -843,7 +855,7 @@ export default function App(){
       let d=null; try{ d = JSON.parse(ev.target.result); }catch(err){}
       if(!d || typeof d!=="object" || !(d.notes||d.workLog||d.favs)){ toast(T("❌ הקובץ אינו גיבוי של OBD Scanner Pro")); return; }
       askConfirm({ text:T("השחזור יחליף את כל הנתונים שבמכשיר בנתונים מהגיבוי. להמשיך?"), ok:T("שחזר"), onOk:()=>{
-        setNotes(d.notes||{}); setFavs(d.favs||[]); setHistory(d.history||[]); setWorkLog(d.workLog||[]); if(d.vehicles) setVehicles(d.vehicles);
+        setNotes(d.notes||{}); setFavs(d.favs||[]); setHistory(d.history||[]); setWorkLog(d.workLog||[]); if(d.vehicles) setVehicles(d.vehicles); if(Array.isArray(d.scanHist)) setScanHist(d.scanHist);
         if(d.settings) setSettings(p=>({ ...p, ...d.settings, guideDone:true }));
         toast(T("✅ הגיבוי שוחזר"));
       } });
@@ -852,9 +864,9 @@ export default function App(){
   }
   function deleteAll(){
     askConfirm({ text:T("למחוק את כל הנתונים? (יומן, הערות, תמונות, מועדפים, היסטוריה)"), ok:T("המשך"), danger:true, onOk:()=>setTimeout(()=>askConfirm({ text:T("בטוח? הפעולה לא ניתנת לביטול. מומלץ לגבות קודם."), ok:T("מחק הכל"), danger:true, onOk:async()=>{
-      await Promise.all(["adp_notes","adp_favs","adp_history","adp_worklog","adp_vehicle","adp_vehicles","adp_diagrams","adp_chat","adp_ai"].map(deleteData));
+      await Promise.all(["adp_notes","adp_favs","adp_history","adp_worklog","adp_vehicle","adp_vehicles","adp_diagrams","adp_chat","adp_ai","obd_scanhist","obd_lastadp"].map(deleteData));
       for(const m of diagrams) await deletePages(m.id, m.pages||0);
-      setNotes({}); setFavs([]); setHistory([]); setWorkLog([]); setVehicle(null); setVehicles([]); setDiagrams([]); setChat([]); setAiCfg({ provider:"gemini", key:"", model:"", auto:true }); toast(T("כל הנתונים נמחקו"));
+      setNotes({}); setFavs([]); setHistory([]); setWorkLog([]); setVehicle(null); setVehicles([]); setDiagrams([]); setChat([]); setScanHist([]); setHistSel([]); setLastAdp(null); setAiCfg({ provider:"gemini", key:"", model:"", auto:true }); toast(T("כל הנתונים נמחקו"));
     } }),50) });
   }
   function shareApp(){
@@ -959,6 +971,16 @@ export default function App(){
     try{
       resetScan(); setScanStatus("searching"); slog("🔍 "+T("מחפש מתאמים..."));
       const dev = await navigator.bluetooth.requestDevice({ acceptAllDevices:true, optionalServices:BLE_PROFILES.map(p=>p.svc) });
+      await bleAttach(dev);
+    }catch(err){
+      const m = String(err&&err.message||err);
+      setScanStatus(/cancel/i.test(m)?"disconnected":"error");
+      slog(/cancel/i.test(m) ? "ℹ️ "+T("החיפוש בוטל") : "❌ "+m);
+    }
+  }
+  function rememberAdp(a){ setLastAdp(a); saveData("obd_lastadp",a); }
+  async function bleAttach(dev){
+    {
       setScanStatus("connecting"); setScanDev(dev); slog("📡 "+T("מתחבר ל-{n}...",{ n:dev.name||"Unknown" }));
       dev.addEventListener("gattserverdisconnected",()=>{ scanCh.current=null; liveRef.current=false; setLiveOn(false); setScanStatus("disconnected"); if(scanWaiter.current){ const w=scanWaiter.current; scanWaiter.current=null; w(scanBuf.current); } slog("🔌 "+T("המתאם התנתק")); });
       const server = await dev.gatt.connect();
@@ -974,13 +996,19 @@ export default function App(){
         }catch(e){}
       }
       if(!writeCh){ setScanStatus("error"); slog("❌ "+T("המתאם לא חושף שירות ELM327 מוכר. ייתכן שזה מתאם Bluetooth קלאסי (לא BLE) או WiFi.")); try{ dev.gatt.disconnect(); }catch(e){} return; }
-      scanCh.current = writeCh;
+      scanCh.current = writeCh; rememberAdp({ kind:"ble", id:dev.id, name:dev.name||"ELM327" });
       await initElm(profile.name);
-    }catch(err){
-      const m = String(err&&err.message||err);
-      setScanStatus(/cancel/i.test(m)?"disconnected":"error");
-      slog(/cancel/i.test(m) ? "ℹ️ "+T("החיפוש בוטל") : "❌ "+m);
     }
+  }
+  // reconnect to the adapter used last time — no chooser (where the browser allows it)
+  const canQuick = () => !!lastAdp && ((lastAdp.kind==="ble" && navigator.bluetooth && navigator.bluetooth.getDevices) || (lastAdp.kind==="serial" && navigator.serial && navigator.serial.getPorts));
+  async function scanQuickConnect(){
+    try{
+      resetScan(); setScanStatus("connecting"); slog("⚡ "+T("מתחבר למתאם האחרון ({n})...",{ n:lastAdp.name }));
+      if(lastAdp.kind==="serial"){ const ports = await navigator.serial.getPorts(); if(!ports.length) throw new Error("no-port"); await serialAttach(ports[0]); return; }
+      const devs = await navigator.bluetooth.getDevices(); const dev = devs.find(d=>d.id===lastAdp.id) || devs.find(d=>d.name===lastAdp.name); if(!dev) throw new Error("no-device");
+      await Promise.race([bleAttach(dev), new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")),15000))]);
+    }catch(err){ setScanStatus("disconnected"); slog("ℹ️ "+T("החיבור המהיר לא הצליח — לחץ \"התחבר לסורק\" ובחר את המתאם.")+" ("+String(err && err.message || err).slice(0,60)+")"); }
   }
   async function scanDemo(){
     resetScan(); setScanLog([]); scanCh.current = makeDemoAdapter(); setScanDev(null); setScanStatus("connecting");
@@ -1094,6 +1122,15 @@ export default function App(){
     try{
       resetScan(); setScanStatus("searching"); slog("🔍 "+T("בחר את המתאם מהרשימה (Bluetooth קלאסי צריך להיות מצומד קודם בהגדרות הטלפון)"));
       port = await navigator.serial.requestPort({ allowedBluetoothServiceClassIds:["00001101-0000-1000-8000-00805f9b34fb"] });
+      await serialAttach(port);
+    }catch(err){
+      const m = String(err && err.message || err);
+      setScanStatus(/cancel|No port selected/i.test(m) ? "disconnected" : "error");
+      slog(/cancel|No port selected/i.test(m) ? "ℹ️ "+T("החיפוש בוטל") : "❌ "+m+(/open/i.test(m) ? " — "+T("ייתכן שהמתאם תפוס באפליקציה אחרת, או שמהירות ה-USB שגויה") : ""));
+    }
+  }
+  async function serialAttach(port){
+    {
       setScanStatus("connecting");
       const info = (port.getInfo && port.getInfo()) || {}; const isUsb = !!info.usbVendorId;
       await port.open({ baudRate: parseInt(serialBaud,10) || 38400 });
@@ -1102,12 +1139,8 @@ export default function App(){
         if(alive){ alive = false; scanCh.current = null; liveRef.current = false; setLiveOn(false); setScanStatus("disconnected"); slog("🔌 "+T("המתאם התנתק")); } })();
       scanCh.current = { serial:true, write: b => writer.write(b), close: async()=>{ alive = false; try{ await reader.cancel(); }catch(e){} try{ reader.releaseLock(); }catch(e){} try{ writer.releaseLock(); }catch(e){} try{ await port.close(); }catch(e){} } };
       slog("✅ "+(isUsb ? T("מחובר ב-USB ({b})",{ b:serialBaud }) : T("מחובר ב-Bluetooth קלאסי")));
+      rememberAdp({ kind:"serial", name:isUsb ? "USB" : "Bluetooth" });
       await initElm(isUsb ? "USB" : "Bluetooth SPP");
-    }catch(err){
-      const m = String(err && err.message || err);
-      try{ if(port && port.readable === null) {} }catch(e){}
-      setScanStatus(/cancel|No port selected/i.test(m) ? "disconnected" : "error");
-      slog(/cancel|No port selected/i.test(m) ? "ℹ️ "+T("החיפוש בוטל") : "❌ "+m+(/open/i.test(m) ? " — "+T("ייתכן שהמתאם תפוס באפליקציה אחרת, או שמהירות ה-USB שגויה") : ""));
     }
   }
   // ─── dashboard: 0–100, trip computer, alerts ───
@@ -1254,6 +1287,86 @@ export default function App(){
     const c = String(typeof cmdIn==="string" ? cmdIn : termCmd).trim().toUpperCase(); if(!c || !scanCh.current) return;
     if(/^0?4$/.test(c)){ scanClearDTCs(); setTermCmd(""); return; }
     slog("> "+c); const r = await scanSendCmd(c,6000); slog("< "+(elmLines(r).join(" | ")||T("אין תשובה"))); setTermCmd("");
+  }
+  // ─── scan history per vehicle: save a snapshot, compare two (before / after a repair) ───
+  const fmtAt = at => new Date(at).toLocaleString(en()?"en-GB":"he-IL",{ dateStyle:"short", timeStyle:"short" });
+  function buildSnap(){
+    const num = k => { const n = parseFloat(scanLive[k]); return isFinite(n) ? n : null; };
+    const v = vehicle && (!scanVin || !vehicle.vin || vehicle.vin===scanVin) ? vehicle : null;
+    const live = {}; for(const k of ["05","06","07","08","09","0C","0B","10","42","batt","31","30","2E","5C"]){ const n = num(k); if(n!==null) live[k] = n; }
+    const tests = {}; for(const id in testRes) tests[id] = { lvl:testRes[id].lvl, line:testRes[id].lines[0]||"" };
+    return { id:uid(), at:Date.now(), vin:scanVin||"", name: v ? [v.makeEn||v.maker||v.makeHe, v.model, v.year].filter(Boolean).join(" ") : "", demo:!!(scanCh.current && scanCh.current.demo),
+      codes: scanCodes ? { stored:[...scanCodes.stored], pending:[...scanCodes.pending], permanent:[...scanCodes.permanent] } : null,
+      mil: scanReady ? !!scanReady.mil : null, rdy: scanReady ? [scanReady.monitors.filter(m=>m.done).length, scanReady.monitors.length] : null,
+      live, mis: scanMis ? scanMis.reduce((a,m)=>a+(m.cur||0),0) : null,
+      m06: m06Res ? { n:m06Res.length, fail:m06Res.filter(r=>!r.pass).length, near:m06Res.filter(r=>r.near).length } : null,
+      tests, odo: scanOdo && scanOdo.length ? scanOdo.map(o=>o.km) : null,
+      ecuCodes: ecuList ? ecuList.reduce((a,e)=>a+(((ecuDet[e.a]||{}).dtcs||[]).length),0) : null };
+  }
+  function saveSnap(){
+    const sn = buildSnap(); const key = sn.vin || sn.name; const prev = scanHist.find(h=>(h.vin||h.name)===key && key);
+    setScanHist(h=>[sn, ...h].slice(0,200)); toast(T("הסריקה נשמרה בהיסטוריה"));
+    setHistSel(prev ? [prev.id, sn.id] : []); setScanSub("hist");
+  }
+  const snapCodes = h => h.codes ? [...h.codes.stored, ...h.codes.pending, ...h.codes.permanent] : null;
+  function HistoryPanel(){
+    const conn = scanStatus==="connected"; const groups = {}; for(const h of scanHist){ const k = h.vin || h.name || "—"; (groups[k] = groups[k] || []).push(h); }
+    const sel = histSel.map(id=>scanHist.find(h=>h.id===id)).filter(Boolean).sort((a,b)=>a.at-b.at);
+    const toggle = id => setHistSel(s=> s.includes(id) ? s.filter(x=>x!==id) : [...s, id].slice(-2));
+    const sg = n => n===null || n===undefined ? "—" : (n>0?"+":"")+n.toFixed(1);
+    const RANK = { ok:0, na:0, warn:1, bad:2 };
+    const cmp = () => { const [A,B] = sel; const rows = [];
+      const add = (lab, a, b, better, fmt) => { if(a===null && b===null || a===undefined && b===undefined) return; let tr = "➖", col = S.muted;
+        if(typeof a==="number" && typeof b==="number" && better){ const x = better==="zero" ? Math.abs(a) : a, y = better==="zero" ? Math.abs(b) : b; const th = better==="zero" ? 2 : 0; const d = better==="high" ? x-y : y-x;
+          if(d < -th){ tr = "✅"; col = S.green; } else if(d > th){ tr = "🔺"; col = S.red; } }
+        rows.push({ lab, a: a===null||a===undefined ? "—" : (fmt?fmt(a):String(a)), b: b===null||b===undefined ? "—" : (fmt?fmt(b):String(b)), tr, col }); };
+      const ca = snapCodes(A), cb = snapCodes(B);
+      add(T("קודי תקלה"), ca?ca.length:null, cb?cb.length:null, "low");
+      add(T("נורית מנוע"), A.mil===null?null:(A.mil?1:0), B.mil===null?null:(B.mil?1:0), "low", v=>v?T("דולקת"):T("כבויה"));
+      add(T("מוכנות"), A.rdy?A.rdy[0]:null, B.rdy?B.rdy[0]:null, "high", v=>String(v));
+      for(const [k,lab] of [["07","LTFT B1"],["09","LTFT B2"],["06","STFT B1"],["08","STFT B2"]]) add(lab+" %", A.live[k]??null, B.live[k]??null, "zero", sg);
+      add(T("מתח מחשב")+" V", A.live["42"]??null, B.live["42"]??null, null, v=>v.toFixed(1));
+      add(T("מתח במתאם")+" V", A.live.batt??null, B.live.batt??null, null, v=>v.toFixed(1));
+      add("MAF g/s", A.live["10"]??null, B.live["10"]??null, null, v=>v.toFixed(1));
+      add(T("טמפ׳ מים")+" °C", A.live["05"]??null, B.live["05"]??null, null, v=>v.toFixed(0));
+      add(T("פספוסים"), A.mis, B.mis, "low");
+      add(T("בדיקות עצמיות שנכשלו"), A.m06?A.m06.fail:null, B.m06?B.m06.fail:null, "low");
+      add(T("בדיקות עצמיות שעברו בקושי"), A.m06?A.m06.near:null, B.m06?B.m06.near:null, "low");
+      add(T("קודים במחשבים אחרים"), A.ecuCodes, B.ecuCodes, "low");
+      add(T("ק\"מ מאז מחיקת קודים"), A.live["31"]??null, B.live["31"]??null, null, v=>v.toFixed(0));
+      for(const t of GUIDED_TESTS){ const ta = A.tests[t.id], tb = B.tests[t.id]; if(!ta && !tb) continue; add(t.ic+" "+(en()?t.en:t.he), ta?RANK[ta.lvl]:null, tb?RANK[tb.lvl]:null, "low", v=>["✅","🟠","🔴"][v]); }
+      const gone = ca && cb ? ca.filter(c=>!cb.includes(c)) : [], fresh = ca && cb ? cb.filter(c=>!ca.includes(c)) : [];
+      return { A, B, rows, gone, fresh }; };
+    const C = sel.length===2 ? cmp() : null;
+    return <>
+      <Card title={"🕘 "+T("היסטוריית סריקות")}>
+        <p style={{ color:S.muted, fontSize:"12px", margin:"0 0 8px" }}>{T("שמור סריקה לפני תיקון ושוב אחריו, סמן את שתיהן — ותראה מה השתפר. הסריקות נשמרות רק במכשיר שלך, לפי רכב.")}</p>
+        {conn && <Btn onClick={saveSnap} disabled={!!scanBusy} style={{ width:"100%", marginBottom:"10px" }}>💾 {T("שמור את הסריקה הנוכחית")}</Btn>}
+        {!scanHist.length && <p style={{ color:S.sub, fontSize:"13px", margin:0 }}>{T("עדיין אין סריקות שמורות.")}</p>}
+        {Object.entries(groups).map(([k,list])=> <div key={k} style={{ marginBottom:"10px" }}>
+          <div style={{ fontWeight:700, fontSize:"13px", color:S.acc, margin:"4px 0 6px" }}>🚗 {list[0].name || T("רכב")} {list[0].vin && <span dir="ltr" style={{ color:S.muted, fontFamily:"monospace", fontSize:"11px", unicodeBidi:"isolate" }}>{list[0].vin}</span>}</div>
+          {list.map(h=>{ const on = histSel.includes(h.id); const cs = snapCodes(h); const tl = Object.values(h.tests||{});
+            return <div key={h.id} style={{ display:"flex", alignItems:"center", gap:"8px", background:S.inner, border:`1px solid ${on?S.acc:S.bdr}`, borderRadius:"10px", padding:"8px", marginBottom:"5px" }}>
+              <button onClick={()=>toggle(h.id)} aria-pressed={on} aria-label={T("סמן להשוואה")} style={{ width:"26px", height:"26px", borderRadius:"7px", border:`2px solid ${on?S.acc:S.bdr}`, background:on?S.acc:"transparent", color:"#111", fontWeight:800, cursor:"pointer", flex:"0 0 auto" }}>{on?"✓":""}</button>
+              <button onClick={()=>toggle(h.id)} style={{ flex:1, background:"transparent", border:"none", color:S.text, textAlign:"start", cursor:"pointer", fontFamily:"inherit", padding:0 }}>
+                <div style={{ fontSize:"13px", fontWeight:700 }}><span dir="ltr" style={{ unicodeBidi:"isolate" }}>{fmtAt(h.at)}</span>{h.demo && <span style={{ color:S.warn, fontSize:"11px" }}> · {T("הדגמה")}</span>}</div>
+                <div style={{ fontSize:"11.5px", color:S.sub, marginTop:"2px" }}>{cs ? (cs.length ? "⚠️ "+cs.join(" ") : "✅ "+T("אין קודים")) : "—"}{h.live["07"]!==undefined && <span dir="ltr" style={{ unicodeBidi:"isolate" }}> · LTFT {sg(h.live["07"])}{h.live["09"]!==undefined?" / "+sg(h.live["09"]):""}</span>}{tl.length>0 && " · 🧪 "+tl.map(t=>LVL[t.lvl][0]).join("")}</div>
+              </button>
+              <IconBtn label={T("מחק")} onClick={()=>askConfirm({ text:T("למחוק את הסריקה הזו מההיסטוריה?"), ok:T("מחק"), danger:true, onOk:()=>{ setScanHist(x=>x.filter(y=>y.id!==h.id)); setHistSel(x=>x.filter(y=>y!==h.id)); } })}>🗑️</IconBtn>
+            </div>; })}
+        </div>)}
+        {scanHist.length>1 && sel.length<2 && <p style={{ color:S.muted, fontSize:"12px", margin:"4px 0 0" }}>{T("סמן שתי סריקות כדי להשוות ביניהן.")}</p>}
+      </Card>
+      {C && <Card title={"⚖️ "+T("השוואה: לפני ← אחרי")}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr auto auto auto", gap:"5px 10px", fontSize:"12.5px", alignItems:"center" }}>
+          <span/><b dir="ltr" style={{ color:S.muted, fontSize:"11px", unicodeBidi:"isolate" }}>{fmtAt(C.A.at)}</b><b dir="ltr" style={{ color:S.muted, fontSize:"11px", unicodeBidi:"isolate" }}>{fmtAt(C.B.at)}</b><span/>
+          {C.rows.map((r,i)=> [<span key={i+"l"} style={{ color:S.sub }}>{r.lab}</span>, <span key={i+"a"} dir="ltr" style={{ unicodeBidi:"isolate", textAlign:"center" }}>{r.a}</span>, <b key={i+"b"} dir="ltr" style={{ color:r.col===S.muted?S.text:r.col, unicodeBidi:"isolate", textAlign:"center" }}>{r.b}</b>, <span key={i+"t"}>{r.tr}</span>])}
+        </div>
+        {C.gone.length>0 && <p style={{ color:S.green, fontSize:"12.5px", margin:"10px 0 0" }}>✅ {T("קודים שנעלמו")}: <b dir="ltr" style={{ unicodeBidi:"isolate" }}>{C.gone.join(" ")}</b></p>}
+        {C.fresh.length>0 && <p style={{ color:S.red, fontSize:"12.5px", margin:"6px 0 0" }}>🔺 {T("קודים חדשים")}: <b dir="ltr" style={{ unicodeBidi:"isolate" }}>{C.fresh.join(" ")}</b></p>}
+        <p style={{ color:S.muted, fontSize:"11px", margin:"10px 0 0" }}>{T("✅ השתפר · 🔺 החמיר · ➖ בלי שינוי משמעותי. תיקוני דלק משווים רק כשהמנוע חם בשתי הסריקות.")}</p>
+      </Card>}
+    </>;
   }
   function scanToLog(){
     const all = scanCodes ? [...scanCodes.stored, ...scanCodes.pending, ...scanCodes.permanent] : [];
@@ -1506,18 +1619,26 @@ export default function App(){
     const RD_NAMES = { misfire:"פספוסי הצתה", fuel:"מערכת דלק", components:"רכיבים", catalyst:"קטליזטור", heatedCat:"קטליזטור מחומם", evap:"EVAP", secAir:"אוויר משני", ac:"מזגן", o2:"חיישני חמצן", o2Heater:"חימום חיישני חמצן", egr:"EGR / VVT", nmhcCat:"קטליזטור NMHC", noxScr:"NOx / SCR", boost:"לחץ טורבו", egs:"חיישני פליטה", pmFilter:"מסנן חלקיקים", egrVvt:"EGR / VVT" };
     const codeRow = (c,color) => <button key={c} onClick={()=>searchCode(c)} style={{ ...rowBtn(), border:`1px solid ${color}`, borderRadius:"10px", marginBottom:"5px" }}><span style={{ color, fontWeight:700, fontFamily:"monospace", minWidth:"58px" }}>{c}</span><span style={{ color:S.sub, fontSize:"12px" }}>{codeTitle(c)||T("לא במאגר")}</span></button>;
     const allCodes = scanCodes ? scanCodes.stored.length+scanCodes.pending.length+scanCodes.permanent.length : 0;
+    const SUBS = [["conn","🔗","חיבור",true],["codes","📡","קודים",conn],["live","📊","נתונים",conn],["tests","🧪","בדיקות",conn],["ecus","🧩","מחשבים",conn],["hist","🕘","היסטוריה",true]];
+    const subNow = (!conn && !["conn","hist"].includes(scanSub)) ? "conn" : scanSub;
     return <>
+      <div role="tablist" style={{ display:"flex", gap:"5px", overflowX:"auto", padding:"2px 0 10px", position:"sticky", top:"52px", zIndex:5, background:S.bg }}>
+        {SUBS.map(([k,ic,lab,ok])=> <button key={k} role="tab" aria-selected={subNow===k} disabled={!ok} onClick={()=>setScanSub(k)} style={{ flex:"1 0 auto", minWidth:"58px", background:subNow===k?S.acc:S.card, color:subNow===k?"#111":(ok?S.text:S.muted), border:`1px solid ${subNow===k?S.acc:S.bdr}`, borderRadius:"10px", padding:"7px 6px", fontSize:"11.5px", fontWeight:700, cursor:ok?"pointer":"default", opacity:ok?1:0.45, fontFamily:"inherit", lineHeight:1.25 }}>
+          <div style={{ fontSize:"16px" }}>{ic}</div>{T(lab)}{k==="codes" && allCodes>0 ? ` (${allCodes})` : ""}</button>)}
+      </div>
+      <div style={{ display: subNow==="conn" ? "block" : "none" }}>
       <Card title={"🔗 "+T("חיבור לסורק ELM327")} actions={conn && <span style={{ color:isDemo?S.warn:S.green, fontWeight:700, fontSize:"12px", padding:"4px 8px", border:`1px solid ${isDemo?S.warn:S.green}`, borderRadius:"8px" }}>● {isDemo?T("הדגמה"):T("מחובר")}</span>}>
         {!conn && <p style={{ color:S.muted, fontSize:"12px", margin:"0 0 10px" }}>{T("חבר מתאם ELM327 BLE לשקע OBD, הדלק הצתה ולחץ התחבר. עובד ב-Chrome באנדרואיד ובמחשב.")}</p>}
         {scanStatus==="unsupported" && <div style={{ background:`${S.red}18`, border:`1px solid ${S.red}`, borderRadius:"10px", padding:"9px", marginBottom:"10px" }}><p style={{ color:S.red, fontSize:"12px", margin:0 }}>⚠️ {T("הדפדפן לא תומך ב-Web Bluetooth. השתמש ב-Chrome באנדרואיד או במחשב.")}</p></div>}
         {!conn
-          ? <><div style={{ display:"flex", gap:"8px" }}><Btn kind="green" disabled={busy} onClick={scanConnect} style={{ flex:2 }}>{scanStatus==="searching"?"🔍 "+T("מחפש..."):scanStatus==="connecting"?"🔄 "+T("מתחבר..."):"🔗 "+T("התחבר לסורק")}</Btn><Btn kind="ghost" disabled={busy} onClick={scanDemo} style={{ flex:1 }}>🎮 {T("הדגמה")}</Btn></div>
+          ? <>{canQuick() && <Btn disabled={busy} onClick={scanQuickConnect} style={{ width:"100%", marginBottom:"8px", fontSize:"15px" }}>⚡ {T("חיבור מהיר: {n}",{ n:lastAdp.name })}</Btn>}<div style={{ display:"flex", gap:"8px" }}><Btn kind="green" disabled={busy} onClick={scanConnect} style={{ flex:2 }}>{scanStatus==="searching"?"🔍 "+T("מחפש..."):scanStatus==="connecting"?"🔄 "+T("מתחבר..."):"🔗 "+T("התחבר לסורק")}</Btn><Btn kind="ghost" disabled={busy} onClick={scanDemo} style={{ flex:1 }}>🎮 {T("הדגמה")}</Btn></div>
           {typeof navigator!=="undefined" && navigator.serial ? <div style={{ display:"flex", gap:"8px", marginTop:"8px", alignItems:"center" }}>
             <Btn kind="blue" disabled={busy} onClick={scanConnectSerial} style={{ flex:2 }}>📶 {T("Bluetooth קלאסי / USB")}</Btn>
             <select value={serialBaud} onChange={e=>setSerialBaud(e.target.value)} aria-label={T("מהירות USB")} style={{ flex:1, minHeight:"44px", borderRadius:"10px", border:`1px solid ${S.bdr}`, background:S.inner, color:S.text, fontFamily:"inherit", padding:"0 6px" }}>{["38400","115200","9600","500000"].map(b=> <option key={b} value={b}>{b}</option>)}</select>
           </div> : <p style={{ color:S.muted, fontSize:"11px", margin:"8px 0 0" }}>{T("מתאם Bluetooth קלאסי או USB? צריך Chrome 137 ומעלה באנדרואיד, או Chrome במחשב.")}</p>}</>
           : <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}><Btn onClick={scanQuickRead} disabled={!!scanBusy} style={{ flex:2 }}>{scanBusy?"⏳ "+T("קורא..."):"🔍 "+T("סריקה מלאה")}</Btn><Btn kind="danger" onClick={scanDisconnect} style={{ flex:1 }}>🔌 {T("נתק")}</Btn></div>}
         {conn && <Btn kind="green" onClick={()=>setReportOpen(true)} disabled={!!scanBusy} style={{ width:"100%", marginTop:"8px", fontSize:"15px" }}>🧠 {T("בדוק, סכם והסבר")}</Btn>}
+        {conn && <Btn kind="ghost" onClick={saveSnap} disabled={!!scanBusy} style={{ width:"100%", marginTop:"8px" }}>💾 {T("שמור את הסריקה הנוכחית")}</Btn>}
         {conn && (scanVin || scanLive.batt || scanReady) && <div style={{ display:"grid", gridTemplateColumns:"auto 1fr", gap:"3px 12px", fontSize:"12px", marginTop:"10px" }}>
           {scanVin && [<span key="vk" style={{ color:S.muted }}>VIN</span>, <span key="vv" style={{ color:S.text, fontFamily:"monospace", fontWeight:700, direction:"ltr", textAlign:"start" }}>{scanVin}</span>]}
           {scanLive.batt && [<span key="bk" style={{ color:S.muted }}>{T("מצבר")}</span>, <span key="bv" style={{ color:S.text, fontWeight:700 }}>{scanLive.batt} V</span>]}
@@ -1526,7 +1647,9 @@ export default function App(){
         </div>}
         {conn && scanVin && vehicle && vehicle.vin && vehicle.vin!==scanVin && <p style={{ color:S.warn, fontSize:"12px", margin:"8px 0 0" }}>⚠️ {T("ה-VIN שנקרא שונה מה-VIN של הרכב הנוכחי ({p}). ודא שזה הרכב הנכון.",{ p:fmtPlate(vehicle.plate) })}</p>}
       </Card>
+      </div>
       {conn && <>
+        <div style={{ display: scanSub==="codes" ? "block" : "none" }}>
         <Card title={"📡 "+T("קודי תקלה")+(scanCodes?` (${allCodes})`:"")} actions={<IconBtn label={T("קרא קודים")} onClick={scanReadDTCs}>🔄</IconBtn>}>
           {!scanCodes ? <p style={{ color:S.muted, fontSize:"12px" }}>{scanBusy==="codes"?T("קורא קודים..."):T("עוד לא נקראו קודים")}</p> : allCodes===0 ? <p style={{ color:S.green, fontWeight:700, fontSize:"13px" }}>✅ {T("אין קודי תקלה!")}</p> : <>
             {scanCodes.stored.length>0 && <><div style={{ color:S.red, fontSize:"12px", fontWeight:700, margin:"0 0 5px" }}>{T("שמורים (פעילים)")}</div>{scanCodes.stored.map(c=>codeRow(c,S.red))}</>}
@@ -1546,6 +1669,8 @@ export default function App(){
           <p style={{ color:S.muted, fontSize:"12px", margin:"0 0 8px" }}>{T("בדיקות שהמחשב מריץ בעצמו בנסיעה. אחרי מחיקת קודים הן מתאפסות ומשלימות אחרי נסיעה של 50–100 ק\"מ.")}</p>
           <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>{scanReady.monitors.map(m=> <span key={m.key} style={{ padding:"5px 9px", borderRadius:"8px", fontSize:"12px", fontWeight:600, background:m.done?`${S.green}18`:`${S.warn}18`, color:m.done?S.green:S.warn, border:`1px solid ${m.done?S.green:S.warn}` }}>{m.done?"✓":"…"} {T(RD_NAMES[m.key]||m.key)}</span>)}</div>
         </Card>}
+        </div>
+        <div style={{ display: scanSub==="live" ? "block" : "none" }}>
         <Card title={"📊 "+T("נתונים בזמן אמת")} actions={recOn ? <span style={{ color:S.red, fontSize:"12px", fontWeight:700 }}>● {T("מקליט · {n}",{ n:recRows.current.length })}</span> : null}>
           <div style={{ display:"flex", gap:"8px", marginBottom:"10px", flexWrap:"wrap" }}>
             <Btn kind={liveOn?"danger":"blue"} onClick={toggleLive} style={{ flex:2 }}>{liveOn?"⏸️ "+T("עצור"):"▶️ "+T("הפעל קריאה רציפה")}</Btn>
@@ -1591,6 +1716,8 @@ export default function App(){
           <p style={{ color:S.muted, fontSize:"11px", margin:"8px 0 0" }}>{T("לחץ על נתון כדי לראות גרף גדול. ההקלטה שומרת את כל הנתונים לקובץ CSV שנפתח באקסל.")}</p>
           </>}
         </Card>
+        </div>
+        <div style={{ display: scanSub==="ecus" ? "block" : "none" }}>
         <Card title={"🧩 "+T("כל מחשבי הרכב")+(ecuList?` (${ecuList.filter(e=>e.ok).length})`:"")} actions={ecuList && ecuList.some(e=>e.ok) && <IconBtn label={T("סרוק שוב")} onClick={()=>ecuScan(false)}>🔄</IconBtn>}>
           <p style={{ color:S.muted, fontSize:"12px", margin:"0 0 8px" }}>{T("בודק אילו מחשבים עונים ברכב (מנוע, תיבה, ABS, כריות, מרכב, שעונים ועוד), וקורא מכל אחד מספר שילדה, גרסאות וקודי תקלה. שמות המחשבים משוערים לפי הכתובת — הם משתנים בין יצרנים. עובד ברכבי CAN; חלק מהיצרנים חוסמים גישה דרך ה-Gateway.")}</p>
           {ecuProg && <p style={{ color:S.acc, fontSize:"12px", margin:"0 0 8px" }}>⏳ {ecuProg}</p>}
@@ -1640,6 +1767,8 @@ export default function App(){
               {dash>0 && (dd>1000 ? <p style={{ color:S.red, fontSize:"12px", fontWeight:700, margin:"6px 0 0" }}>🚩 {T("לוח השעונים שונה ב-{n} ק\"מ ממה שהמחשבים זוכרים — חשד להחזרת מונה או החלפת לוח.",{ n:dd.toLocaleString() })}</p> : <p style={{ color:S.green, fontSize:"12px", margin:"6px 0 0" }}>✅ {T("לוח השעונים תואם למחשבים")}</p>)}
             </div>; })()}
         </Card>
+        </div>
+        <div style={{ display: scanSub==="tests" ? "block" : "none" }}>
         <Card title={"🧪 "+T("בדיקות מודרכות")}>
           <p style={{ color:S.muted, fontSize:"12px", margin:"0 0 8px" }}>{T("האפליקציה אומרת לך מה לעשות, מודדת, ומסכמת אם זה תקין. כל בדיקה לוקחת בין חצי דקה לכמה דקות.")}</p>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
@@ -1686,7 +1815,9 @@ export default function App(){
               <p style={{ color:S.muted, fontSize:"11px", margin:"8px 0 0" }}>{T("מספור הצילינדרים לפי היצרן. ספירה גבוהה בצילינדר אחד → החלף סליל/פלאג/מזרק עם צילינדר אחר ובדוק אם הספירה עוברת.")}</p>
             </div>; })()}
         </Card>
+        </div>
       </>}
+      <div style={{ display: subNow==="conn" ? "block" : "none" }}>
       <Card title={"📋 "+T("יומן סורק")} actions={scanLog.length>0&&<IconBtn label={T("נקה")} onClick={()=>setScanLog([])}>🧹</IconBtn>}>
         {scanLog.length===0 ? <p style={{ color:S.muted, fontSize:"12px", textAlign:"center" }}>{T("עדיין לא התחברת")}</p> : <div ref={el=>{ if(el) el.scrollTop = el.scrollHeight; }} style={{ maxHeight:"220px", overflowY:"auto" }}>{scanLog.map((l,i)=> <p key={i} style={{ color:S.sub, fontSize:"12px", margin:"3px 0", borderBottom:`1px solid ${S.bdr}`, paddingBottom:"3px", fontFamily:"monospace", wordBreak:"break-word" }}>{l}</p>)}</div>}
         {conn && <div style={{ display:"flex", gap:"6px", marginTop:"8px" }}><Field value={termCmd} onChange={e=>setTermCmd(e.target.value)} onKeyDown={e=>e.key==="Enter"&&scanTerminal()} placeholder={T("פקודה ידנית (למשל ATRV או 010C)")} aria-label={T("פקודה ידנית")} style={{ fontFamily:"monospace", direction:"ltr" }}/><Btn kind="ghost" onClick={scanTerminal}>{T("שלח")}</Btn></div>}
@@ -1702,6 +1833,8 @@ export default function App(){
         <p>📶 {T("מתאם Bluetooth קלאסי (BT 2.0/3.0): קודם מצמדים אותו בהגדרות ה-Bluetooth של הטלפון (קוד 1234 או 0000), ואז \"Bluetooth קלאסי / USB\". דורש Chrome 137 ומעלה.")}</p><p>🔌 {T("מתאם USB: במחשב עם Chrome. אם אין תשובה — נסה מהירות 38400 או 115200.")}</p><p style={{ color:S.warn }}>⚠️ {T("מתאם WiFi לא יכול להתחבר מדפדפן (הדפדפן לא פותח חיבור TCP ישיר). השתמש במתאם BLE, Bluetooth קלאסי או USB.")}</p>
         <p>🎮 {T("רוצה לראות איך זה נראה בלי רכב? לחץ \"הדגמה\".")}</p>
       </div></Card>
+      </div>
+      {subNow==="hist" && HistoryPanel()}
     </>;
   }
 
@@ -2156,7 +2289,7 @@ export default function App(){
       {dgSheet && <DiagramSheet key={dgSheet.meta?dgSheet.meta.id:"new"} init={dgSheet.meta} preset={dgVeh()} busy={dgBusy} onSave={saveDiagram} onDelete={deleteDiagram} onClose={()=>setDgSheet(null)} askConfirm={askConfirm} backArrow={backArrow}/>}
       {dgView && <DiagramViewer meta={dgView} onClose={()=>setDgView(null)} onMarks={mk=>setMarks(dgView.id, mk)} onEdit={()=>setDgSheet({ meta:dgView })} askConfirm={askConfirm} backArrow={backArrow}/>}
       {!assistOpen && !reportOpen && !testOpen && !dgView && !dgSheet && !wlSheet && guideStep<0 && <button onClick={openAssist} aria-label={T("העוזר")} style={{ position:"fixed", zIndex:60, bottom:"calc(78px + env(safe-area-inset-bottom))", insetInlineEnd:"14px", width:"54px", height:"54px", borderRadius:"50%", border:`2px solid ${S.acc}`, background:S.card, color:S.acc, fontSize:"26px", boxShadow:"0 4px 14px rgba(0,0,0,.45)", cursor:"pointer" }}>🤖</button>}
-      {testOpen && (()=>{ const t = GUIDED_TESTS.find(x=>x.id===testOpen); return t ? <GuidedTest key={t.id} test={t} read={gtRead} backArrow={backArrow} onClose={()=>setTestOpen("")} onDone={(r)=>{ setTestRes(p=>({ ...p, [t.id]:{ ...r, at:Date.now() } })); slog(LVL[r.lvl][0]+" "+(en()?t.en:t.he)+": "+r.lines[0]); }}/> : null; })()}
+      {testOpen && (()=>{ const t = GUIDED_TESTS.find(x=>x.id===testOpen); return t ? <GuidedTest key={t.id} test={t} read={gtRead} prev={testRes[t.id] ? { lvl:testRes[t.id].lvl, line:testRes[t.id].lines[0], at:testRes[t.id].at } : (()=>{ const k = scanVin || ""; const h = scanHist.find(x=>x.tests && x.tests[t.id] && (!k || x.vin===k)); return h ? { ...h.tests[t.id], at:h.at } : null; })()} backArrow={backArrow} onClose={()=>setTestOpen("")} onDone={(r)=>{ setTestRes(p=>({ ...p, [t.id]:{ ...r, at:Date.now() } })); slog(LVL[r.lvl][0]+" "+(en()?t.en:t.he)+": "+r.lines[0]); }}/> : null; })()}
       {reportOpen && <ScanReport onClose={()=>setReportOpen(false)} getCtx={assistCtx} aiCfg={aiCfg} odo={scanOdo} m06={m06Res} tests={testRes} ecus={ecuList} ecuDet={ecuDet} proto={protoName(scanProto.current)} batt={scanLive.batt} onOpenAssist={()=>{ setReportOpen(false); openAssist(); }} onOpenSettings={()=>{ setReportOpen(false); setAssistView("settings"); setAssistOpen(true); }} backArrow={backArrow}/>}
       {assistOpen && <AssistantPanel onClose={()=>setAssistOpen(false)} getCtx={assistCtx} messages={chat} setMessages={setChat} aiCfg={aiCfg} setAiCfg={setAiCfg} onAction={assistAct} actLabel={assistActLabel} askConfirm={askConfirm} backArrow={backArrow} view={assistView} setView={setAssistView}/>}
       {/* onboarding guide */}
