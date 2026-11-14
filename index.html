@@ -23,11 +23,11 @@
     #root{min-height:100vh}
     #boot{min-height:100vh;display:flex;align-items:center;justify-content:center;color:#F59E0B;font-size:18px}
   </style>
-  <script type="module" crossorigin src="./assets/index-Bsh6e_HS.js"></script>
 </head>
 <body>
   <div id="root"><div id="boot">🔧 טוען...</div></div>
   <noscript><p style="color:#fff;padding:20px">האפליקציה צריכה JavaScript כדי לפעול.</p></noscript>
+  <script type="module" src="/src/main.jsx"></script>
   <script>
     if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost' || location.hostname==='127.0.0.1')){
       window.addEventListener('load',function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
