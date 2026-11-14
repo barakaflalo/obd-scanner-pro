@@ -23,9 +23,9 @@ CacheStorage.prototype.match=function(){return sm.apply(this,arguments).then(cle
    Page (navigation): network first (4s), cache as offline fallback → new uploads always win when online.
    Files in assets/ have a content hash in their name → cache first.
    VERSION goes up with every release (same number as APP_VERSION and manifest). */
-const VERSION = '2.9.0';
+const VERSION = '2.11.0';
 const CACHE = 'obdscanner-' + VERSION;
-const PRECACHE = ["./","./manifest.json","./privacy_policy.html","./icon.svg","./icon-192.png","./icon-512.png","./assets/byd-DuOehISa.js","./assets/ford-Y1u8dEJe.js","./assets/gm-BLOggyLg.js","./assets/hk-Cuym1oez.js","./assets/honda-xsu4xTqj.js","./assets/index-Bsh6e_HS.js","./assets/jlr-bgPMPjGr.js","./assets/mazda-BH0Idr8f.js","./assets/mg-BukNY_ZX.js","./assets/mitsubishi-UQXfBWvr.js","./assets/nissan-Dfz73smV.js","./assets/pdf.min-N4RGOxZg.js","./assets/pdf.worker.min-GtxnNB1h.js","./assets/pdf.worker.min-yatZIOMy.js","./assets/renault-DUNvcpjV.js","./assets/stellantis-DCjSJqEq.js","./assets/subaru-D1aw-Rc4.js","./assets/toyota-ChU5QG1F.js","./assets/vag-BGGeG8TG.js","./assets/volvo-BLywGWgQ.js"];
+const PRECACHE = ["./","./manifest.json","./privacy_policy.html","./icon.svg","./icon-192.png","./icon-512.png","./assets/B0-5-UaaWMI.js","./assets/C0-kDUAU7r3.js","./assets/P0_0-CVYWrsie.js","./assets/P0_1-DmNhgWq8.js","./assets/P0_2-DhN3KPZU.js","./assets/P0_3-DLCwXLpl.js","./assets/P2_0-C-KCHNAl.js","./assets/P2_1-Cyn8nVu2.js","./assets/P2_2-BaNd7ZyH.js","./assets/P2_3-COFf8_8b.js","./assets/P3-DCKZctWp.js","./assets/U0-Btihosjr.js","./assets/U3-Bjkceb-7.js","./assets/byd-DuOehISa.js","./assets/ford-Y1u8dEJe.js","./assets/gm-BLOggyLg.js","./assets/hk-Cuym1oez.js","./assets/honda-xsu4xTqj.js","./assets/index-CItUBVfy.js","./assets/jlr-bgPMPjGr.js","./assets/makers-DP8yljvf.js","./assets/mazda-BH0Idr8f.js","./assets/mg-BukNY_ZX.js","./assets/mitsubishi-UQXfBWvr.js","./assets/nissan-Dfz73smV.js","./assets/pdf.min-N4RGOxZg.js","./assets/pdf.worker.min-GtxnNB1h.js","./assets/pdf.worker.min-yatZIOMy.js","./assets/renault-DUNvcpjV.js","./assets/stellantis-DCjSJqEq.js","./assets/subaru-D1aw-Rc4.js","./assets/toyota-ChU5QG1F.js","./assets/vag-BGGeG8TG.js","./assets/volvo-BLywGWgQ.js"];
 
 self.addEventListener('install', e => {
   e.waitUntil(
